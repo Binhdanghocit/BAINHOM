@@ -1,0 +1,41 @@
+# ============ Unity generated ============
+[Ll]ibrary/
+[Tt]emp/
+[Oo]bj/
+[Bb]uild/
+[Bb]uilds/
+[Ll]ogs/
+[Uu]serSettings/
+[Mm]emoryCaptures/
+
+# Unity3D generated meta files
+*.pidb.meta
+*.pdb.meta
+*.mdb.meta
+
+# Unity3D Generated File On Crash Reports
+sysinfo.txt
+
+# Builds
+*.apk
+*.aab
+*.unitypackage
+*.app
+*.ipa
+
+# Crashlytics generated file
+crashlytics-build.properties
+
+# ============ VS / IDE ============
+.vs/
+.vsconfig
+*.csproj
+*.slnx
+*.sln
+
+# ============ OS ============
+.DS_Store
+Thumbs.db
+
+# Never ignore Asset meta data
+!/[Aa]ssets/**/*.meta

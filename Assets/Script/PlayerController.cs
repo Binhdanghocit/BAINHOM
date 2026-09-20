@@ -57,7 +57,7 @@ public class PlayerController : MonoBehaviour
 
         // Kiểm tra xem chuột có đang bị khóa và đang ở góc nhìn thứ nhất (distance <= 0.3f)
         bool isCursorLocked = Cursor.lockState == CursorLockMode.Locked;
-        bool isFirstPerson = (camScript != null && camScript.distance <= 0.3f);
+        bool isFirstPerson = (camScript != null && camScript.IsFirstPerson);
 
         if (isFirstPerson)
         {

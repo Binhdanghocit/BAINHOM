@@ -13,7 +13,8 @@ public class ThirdPersonCamera : MonoBehaviour
     public float zoomSpeed = 2.0f;             // Tốc độ Zoom
 
     [Header("Character Renderer (Ẩn mesh khi First-Person)")]
-    public Renderer characterRenderer;        // Kéo SkinnedMeshRenderer của nhân vật vào đây
+    [Tooltip("Kéo các mesh của nhân vật vào (nếu nhiều mesh: tóc, mũ, thân...). Để TRỐNG = tự tìm toàn bộ Renderer con của Target.")]
+    public Renderer[] characterRenderers;
 
     [Header("Sensitivity & Limits")]
     public float mouseSensitivity = 3f;       // Tốc độ xoay chuột
@@ -22,6 +23,35 @@ public class ThirdPersonCamera : MonoBehaviour
 
     public float currentX = 0f;
     private float currentY = 0f;
+
+    // Ngưỡng khoảng cách xem là "First-Person" (dùng chung cho Camera/PlayerController/Crosshair)
+    public const float FirstPersonThreshold = 0.3f;
+
+    public bool IsFirstPerson => distance <= FirstPersonThreshold;
+
+    // Cache trạng thái hiển thị mesh: chỉ ghi enabled khi THẬT SỰ đổi góc nhìn
+    private bool firstPersonState;
+    private bool characterVisible = true;
+    private Renderer[] resolvedRenderers;
+
+    // Ưu tiên mảng do user kéo vào; nếu để trống thì tự gom toàn bộ Renderer con của Target
+    // (bao cả SkinnedMeshRenderer tóc/mũ/thân...) -> Góc 1 ẩn sạch, không lòi mesh
+    private void ResolveRenderers()
+    {
+        if (resolvedRenderers != null) return;
+        if (characterRenderers != null && characterRenderers.Length > 0)
+        {
+            resolvedRenderers = characterRenderers;
+        }
+        else if (target != null)
+        {
+            resolvedRenderers = target.GetComponentsInChildren<Renderer>(true);
+        }
+        else
+        {
+            resolvedRenderers = System.Array.Empty<Renderer>();
+        }
+    }
 
     void Start()
     {
@@ -56,7 +86,7 @@ public class ThirdPersonCamera : MonoBehaviour
         if (Cursor.lockState == CursorLockMode.Locked)
         {
             // Kiểm tra nếu đang ở Góc nhìn thứ nhất (FPS)
-            if (distance <= 0.3f)
+            if (IsFirstPerson)
             {
                 // Ở FPS, PlayerController trực tiếp xoay thân nhân vật theo Mouse X, 
                 // nên Camera lấy luôn góc Y của nhân vật làm currentX.
@@ -99,10 +129,27 @@ public class ThirdPersonCamera : MonoBehaviour
         transform.position = position;
         transform.rotation = rotation;
 
-        // 4. Tự động ẩn nhân vật khi Zoom sát mặt (distance < 0.3)
-        if (characterRenderer != null)
+        // 4. Tự động ẩn nhân vật khi Zoom sát mặt.
+        // Tối ưu: chỉ ghi enabled đúng khi TRỞ NGANG TRẠNG THÁI (FPS <-> TPS),
+        // thay vì đọc/so sánh .enabled mỗi frame như trước.
+        bool firstPerson = IsFirstPerson;
+        if (firstPerson != firstPersonState)
         {
-            characterRenderer.enabled = (distance > 0.3f);
+            firstPersonState = firstPerson;
+            ResolveRenderers();
+            bool visible = !firstPerson;
+            if (visible != characterVisible)
+            {
+                characterVisible = visible;
+                for (int i = 0; i < resolvedRenderers.Length; i++)
+                {
+                    Renderer r = resolvedRenderers[i];
+                    if (r != null && r.enabled != visible)
+                    {
+                        r.enabled = visible;
+                    }
+                }
+            }
         }
     }
 }

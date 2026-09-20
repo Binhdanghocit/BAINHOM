@@ -73,7 +73,10 @@ public class PlayerInteraction : MonoBehaviour
 
     void TryInteract()
     {
-        Ray ray = Camera.main.ViewportPointToRay(new Vector3(0.5f, 0.5f, 0));
+        Camera cam = Camera.main;
+        if (cam == null) return;
+
+        Ray ray = cam.ViewportPointToRay(new Vector3(0.5f, 0.5f, 0));
 
         // Lấy tất cả các Object bị tia Raycast đâm xuyên qua (xếp theo thứ tự từ gần đến xa)
         RaycastHit[] hits = Physics.RaycastAll(ray, interactDistance);
@@ -81,7 +84,7 @@ public class PlayerInteraction : MonoBehaviour
         foreach (RaycastHit hit in hits)
         {
             // Bỏ qua nếu tia đâm trúng Nhân vật hoặc bất kỳ phần nào của Nhân vật
-            if (hit.collider.CompareTag("Player") || hit.collider.transform.IsChildOf(transform))
+            if (PlayerDetector.IsPlayer(hit.collider.transform) || hit.collider.transform.IsChildOf(transform))
             {
                 continue; // Chuyển sang Object tiếp theo đằng sau lưng nhân vật
             }

@@ -49,7 +49,7 @@ Material:
     - _Metallic: 0.02
     - _QueueControl: 0
     - _QueueOffset: 0
-    - _Smoothness: 0.88
+    - _Smoothness: 0.5
     - _Tiling: 0.2
     m_Colors: []
   m_BuildTextureStacks: []

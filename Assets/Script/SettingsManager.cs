@@ -22,6 +22,10 @@ public class SettingsManager : MonoBehaviour
     public AudioSource bgmAudioSource; // Kéo AudioSource phát nhạc ở Scene này vào
     public List<AudioClip> localBGMList = new List<AudioClip>(); // Danh sách nhạc BGM riêng cho Scene này
 
+    [Header("--- Tâm ngắm (Crosshair) ---")]
+    public CrosshairReticle crosshair; // Nếu để trống sẽ tự tìm trong scene
+    public bool crosshairEnabled = true;
+
     private void Start()
     {
         if (settingsPanel != null)
@@ -47,6 +51,47 @@ public class SettingsManager : MonoBehaviour
 
         // Cấu hình FPS Dropdown
         SetupFPSDropdown();
+
+        // Đồng bộ trạng thái tâm ngắm với cài đặt
+        if (crosshair == null)
+        {
+            crosshair = FindObjectOfType<CrosshairReticle>();
+        }
+        if (crosshair != null)
+        {
+            crosshair.SetCrosshairEnabled(crosshairEnabled);
+        }
+    }
+
+    // Hàm gọi từ Toggle "Hiện tâm" trong Menu Settings
+    public void SetCrosshairEnabled(bool value)
+    {
+        crosshairEnabled = value;
+        if (crosshair != null)
+        {
+            crosshair.SetCrosshairEnabled(value);
+        }
+    }
+
+    private void Update()
+    {
+        // Nhấn ESC để mở/đóng Settings (trong khi chơi)
+        if (Input.GetKeyDown(KeyCode.Escape))
+        {
+            TogglePanel();
+        }
+    }
+
+    public void TogglePanel()
+    {
+        if (settingsPanel != null && settingsPanel.activeSelf)
+        {
+            ClosePanel();
+        }
+        else
+        {
+            OpenPanel();
+        }
     }
 
     public void OpenPanel()
@@ -56,6 +101,12 @@ public class SettingsManager : MonoBehaviour
             settingsPanel.SetActive(true);
             Cursor.lockState = CursorLockMode.None;
             Cursor.visible = true;
+
+            // Ẩn tâm ngắm khi menu Settings mở
+            if (crosshair != null)
+            {
+                crosshair.SetForceHidden(true);
+            }
         }
     }
 
@@ -64,6 +115,12 @@ public class SettingsManager : MonoBehaviour
         if (settingsPanel != null)
         {
             settingsPanel.SetActive(false);
+
+            // Hiện lại tâm ngắm khi đóng Settings
+            if (crosshair != null)
+            {
+                crosshair.SetForceHidden(false);
+            }
 
             if (SceneManager.GetActiveScene().name == "MainMenu")
             {

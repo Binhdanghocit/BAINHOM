@@ -14,6 +14,11 @@ public class PlayerController : MonoBehaviour
     public float turnSmoothTime = 0.1f;
     public float mouseSensitivity = 3.0f; // Nhận xoay chuột ngang khi ở FPS
 
+    [Header("Audio Settings")]
+    public float stepIntervalWalk = 0.5f; // Khoảng thời gian giữa các bước đi bộ
+    public float stepIntervalRun = 0.3f;  // Khoảng thời gian giữa các bước chạy
+    private float stepTimer;
+
     private CharacterController controller;
     private Animator animator;
     private Vector3 velocity;
@@ -72,10 +77,14 @@ public class PlayerController : MonoBehaviour
 
                 float animSpeed = isRunning ? 1.0f : 0.5f;
                 animator.SetFloat("Speed", animSpeed, 0.1f, Time.deltaTime);
+
+                // Phát tiếng bước chân
+                HandleFootstepSounds(isRunning);
             }
             else
             {
                 animator.SetFloat("Speed", 0f, 0.05f, Time.deltaTime);
+                stepTimer = 0f; // Reset đếm giờ bước chân khi đứng yên
             }
         }
         else
@@ -92,10 +101,14 @@ public class PlayerController : MonoBehaviour
 
                 float animSpeed = isRunning ? 1.0f : 0.5f;
                 animator.SetFloat("Speed", animSpeed, 0.1f, Time.deltaTime);
+
+                // Phát tiếng bước chân
+                HandleFootstepSounds(isRunning);
             }
             else
             {
                 animator.SetFloat("Speed", 0f, 0.05f, Time.deltaTime);
+                stepTimer = 0f; // Reset đếm giờ bước chân khi đứng yên
             }
         }
 
@@ -104,6 +117,12 @@ public class PlayerController : MonoBehaviour
         {
             velocity.y = Mathf.Sqrt(jumpHeight * -2f * gravity);
             animator.SetBool("IsGrounded", false);
+
+            // Phát tiếng nhảy qua AudioManager
+            if (AudioManager.Instance != null)
+            {
+                AudioManager.Instance.PlaySFX(AudioManager.Instance.jumpClip);
+            }
         }
 
         velocity.y += gravity * Time.deltaTime;
@@ -112,6 +131,24 @@ public class PlayerController : MonoBehaviour
         if (controller.isGrounded)
         {
             animator.SetBool("IsGrounded", true);
+        }
+    }
+
+    // Hàm bổ sung: Quản lý tần suất phát tiếng bước chân khi chạm đất
+    private void HandleFootstepSounds(bool running)
+    {
+        if (!isGrounded) return;
+
+        stepTimer += Time.deltaTime;
+        float currentInterval = running ? stepIntervalRun : stepIntervalWalk;
+
+        if (stepTimer >= currentInterval)
+        {
+            if (AudioManager.Instance != null)
+            {
+                AudioManager.Instance.PlaySFX(AudioManager.Instance.footstepClip);
+            }
+            stepTimer = 0f;
         }
     }
 }

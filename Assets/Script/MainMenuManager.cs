@@ -24,6 +24,9 @@ public class MainMenuManager : MonoBehaviour
     private void Awake()
     {
         BuildLoadingUI();
+        // Main Menu dùng Canvas Screen Space. Cầu nối này biến ray/trigger từ
+        // controller VR thành PointerEvent cho chính các Button/Slider hiện có.
+        gameObject.AddComponent<VRUIInputBridge>();
     }
 
     // Gọi khi nhấn nút Play
@@ -36,6 +39,21 @@ public class MainMenuManager : MonoBehaviour
             return;
         }
         StartCoroutine(LoadGalleryAsync());
+    }
+
+    // Gọi khi nhấn nút "Chơi VR" (PC có kính / Quest muốn vào VR thủ công):
+    // khởi XR trước rồi mới load gallery để ViewModeController bật rig VR.
+    // Trên máy không có kính, XRBoot tự bỏ qua và vào chế độ phẳng như PlayGame.
+    public void PlayGameVR()
+    {
+        if (isLoading) return;
+        StartCoroutine(PlayVRRoutine());
+    }
+
+    private System.Collections.IEnumerator PlayVRRoutine()
+    {
+        yield return XRBoot.StartXRRoutine();
+        PlayGame();
     }
 
     // Gọi khi nhấn nút Quit

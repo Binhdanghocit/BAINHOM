@@ -84,7 +84,10 @@ public class DialogueUIManager : MonoBehaviour
         prompt = new GameObject("InteractPrompt");
         prompt.transform.SetParent(canvasGo.transform, false);
         var promptText = prompt.AddComponent<TextMeshProUGUI>();
-        promptText.text = "Nhấn E / Click để tương tác";
+        // Prompt theo nền tảng: điện thoại tap, PC bấm E/click
+        promptText.text = PlatformHelper.IsTouchDevice()
+            ? "Chạm vào nhân vật/tranh để tương tác"
+            : "Nhấn E / Click để tương tác";
         promptText.fontSize = 30;
         promptText.fontStyle = FontStyles.Bold;
         promptText.alignment = TextAlignmentOptions.Center;

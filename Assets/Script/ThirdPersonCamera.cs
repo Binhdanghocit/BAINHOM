@@ -29,6 +29,14 @@ public class ThirdPersonCamera : MonoBehaviour
 
     public bool IsFirstPerson => distance <= FirstPersonThreshold;
 
+    // Xoay camera bằng code (điều khiển cảm ứng điện thoại): cùng dấu với chuột
+    // yaw > 0 = quay phải, pitch > 0 (kéo lên) = ngước lên
+    public void AddLook(float yawDelta, float pitchDelta)
+    {
+        currentX += yawDelta;
+        currentY = Mathf.Clamp(currentY - pitchDelta, pitchMin, pitchMax);
+    }
+
     // Cache trạng thái hiển thị mesh: chỉ ghi enabled khi THẬT SỰ đổi góc nhìn
     private bool firstPersonState;
     private bool characterVisible = true;
@@ -55,9 +63,8 @@ public class ThirdPersonCamera : MonoBehaviour
 
     void Start()
     {
-        // Khóa con trỏ chuột vào giữa màn hình
-        Cursor.lockState = CursorLockMode.Locked;
-        Cursor.visible = false;
+        // PC mới khóa chuột vào giữa màn hình; điện thoại/VR không khóa
+        PlatformHelper.SetCursorLocked(true);
 
         if (target != null)
         {
@@ -67,8 +74,8 @@ public class ThirdPersonCamera : MonoBehaviour
 
     void Update()
     {
-        // 1. Bấm LeftAlt để Bật/Tắt trạng thái khóa chuột
-        if (Input.GetKeyDown(KeyCode.LeftAlt))
+        // 1. Bấm LeftAlt để Bật/Tắt trạng thái khóa chuột (PC only)
+        if (!PlatformHelper.IsTouchDevice() && Input.GetKeyDown(KeyCode.LeftAlt))
         {
             if (Cursor.lockState == CursorLockMode.Locked)
             {

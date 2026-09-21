@@ -77,9 +77,8 @@ public class PaintingUIManager : MonoBehaviour
             clickBlocker.gameObject.SetActive(false);
         }
 
-        // Khóa lại con trỏ chuột để điều khiển nhân vật tiếp
-        Cursor.lockState = CursorLockMode.Locked;
-        Cursor.visible = false;
+        // Khóa lại con trỏ chuột để điều khiển nhân vật tiếp (PC only)
+        PlatformHelper.SetCursorLocked(true);
     }
 
     // Tự tạo vùng trong suốt phủ kín màn hình, nằm DƯỚI popupPanel.

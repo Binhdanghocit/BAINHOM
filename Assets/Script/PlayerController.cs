@@ -1,10 +1,17 @@
 using UnityEngine;
+using UnityEngine.EventSystems;
 
 [RequireComponent(typeof(CharacterController))]
 [RequireComponent(typeof(Animator))]
 public class PlayerController : MonoBehaviour
 {
     public Transform cameraTransform;
+
+    [Header("Touch Controls (điện thoại)")]
+    [Tooltip("Nửa trái vuốt = joystick di chuyển, nửa phải vuốt = xoay góc nhìn")]
+    public float touchLookSensitivity = 0.25f;
+    [Tooltip("Bán kính joystick ảo (pixel)")]
+    public float moveStickRadius = 90f;
 
     [Header("Movement Settings")]
     public float walkSpeed = 2.0f;
@@ -27,6 +34,14 @@ public class PlayerController : MonoBehaviour
 
     private ThirdPersonCamera camScript;
 
+    // State điều khiển cảm ứng (desktop không dùng tới)
+    private Vector2 touchMove;
+    private Vector2 touchLook;
+    private bool touchJump;
+    private int moveFingerId = -1;
+    private int lookFingerId = -1;
+    private Vector2 moveStartPos;
+
     void Start()
     {
         controller = GetComponent<CharacterController>();
@@ -37,7 +52,8 @@ public class PlayerController : MonoBehaviour
             camScript = cameraTransform.GetComponent<ThirdPersonCamera>();
         }
 
-        Cursor.lockState = CursorLockMode.Locked;
+        // PC mới khóa chuột; điện thoại dùng cảm ứng nên không khóa
+        PlatformHelper.SetCursorLocked(true);
     }
 
     void Update()
@@ -48,11 +64,14 @@ public class PlayerController : MonoBehaviour
             velocity.y = -2f;
         }
 
-        float horizontal = Input.GetAxisRaw("Horizontal");
-        float vertical = Input.GetAxisRaw("Vertical");
+        UpdateTouchInput();
+
+        float horizontal = Mathf.Clamp(Input.GetAxisRaw("Horizontal") + touchMove.x, -1f, 1f);
+        float vertical = Mathf.Clamp(Input.GetAxisRaw("Vertical") + touchMove.y, -1f, 1f);
         Vector3 direction = new Vector3(horizontal, 0f, vertical).normalized;
 
-        bool isRunning = Input.GetKey(KeyCode.LeftShift);
+        // Đẩy joystick hết cỡ trên điện thoại = chạy (tương đương giữ Shift)
+        bool isRunning = Input.GetKey(KeyCode.LeftShift) || touchMove.sqrMagnitude > 0.8f;
         float targetSpeed = isRunning ? runSpeed : walkSpeed;
 
         // Kiểm tra xem chuột có đang bị khóa và đang ở góc nhìn thứ nhất (distance <= 0.3f)
@@ -67,6 +86,16 @@ public class PlayerController : MonoBehaviour
             {
                 float mouseX = Input.GetAxis("Mouse X") * mouseSensitivity;
                 transform.Rotate(Vector3.up * mouseX);
+            }
+
+            // 1b. Cảm ứng: vuốt nửa phải để xoay (góc ngẩng do camera đảm nhận)
+            if (touchLook.x != 0f)
+            {
+                transform.Rotate(Vector3.up * touchLook.x * touchLookSensitivity);
+            }
+            if (touchLook.y != 0f && camScript != null)
+            {
+                camScript.AddLook(0f, touchLook.y * touchLookSensitivity);
             }
 
             // 2. Di chuyển theo hướng nhân vật đang quay mặt
@@ -90,6 +119,12 @@ public class PlayerController : MonoBehaviour
         else
         {
             // --- GÓC NHÌN THỨ BA (TPS) ---
+            // Cảm ứng: vuốt nửa phải xoay camera quanh nhân vật
+            if (touchLook != Vector2.zero && camScript != null)
+            {
+                camScript.AddLook(touchLook.x * touchLookSensitivity, touchLook.y * touchLookSensitivity);
+            }
+
             if (direction.magnitude >= 0.1f)
             {
                 float targetAngle = Mathf.Atan2(direction.x, direction.z) * Mathf.Rad2Deg + cameraTransform.eulerAngles.y;
@@ -112,8 +147,8 @@ public class PlayerController : MonoBehaviour
             }
         }
 
-        // Xử lý Nhảy và Trọng lực
-        if (Input.GetButtonDown("Jump") && isGrounded)
+        // Xử lý Nhảy và Trọng lực (tap 2 ngón trên điện thoại = nhảy)
+        if ((Input.GetButtonDown("Jump") || touchJump) && isGrounded)
         {
             velocity.y = Mathf.Sqrt(jumpHeight * -2f * gravity);
             animator.SetBool("IsGrounded", false);
@@ -131,6 +166,81 @@ public class PlayerController : MonoBehaviour
         if (controller.isGrounded)
         {
             animator.SetBool("IsGrounded", true);
+        }
+    }
+
+    // Quét cảm ứng mỗi frame: nửa trái = joystick di chuyển, nửa phải = xoay nhìn,
+    // tap 2 ngón = nhảy. Chạm bắt đầu/kết thúc trên UI thì bỏ qua (để bấm nút).
+    // Desktop (không có touch) tự bỏ qua, không ảnh hưởng chuột/phím.
+    private void UpdateTouchInput()
+    {
+        touchMove = Vector2.zero;
+        touchLook = Vector2.zero;
+        touchJump = false;
+
+        // MobileControlsOverlay nhận pointer từ Input System UI và chuyển nó thành
+        // trục di chuyển / delta vuốt. Đường touch cũ phía dưới vẫn là dự phòng
+        // cho scene chưa có overlay hoặc các UI tùy biến.
+        if (MobileControlsOverlay.IsAvailable)
+        {
+            touchMove = MobileControlsOverlay.Move;
+            touchLook = MobileControlsOverlay.ConsumeLookDelta();
+            return;
+        }
+
+        if (Input.touchCount == 0)
+        {
+            moveFingerId = -1;
+            lookFingerId = -1;
+            return;
+        }
+
+        float halfW = Screen.width * 0.5f;
+        for (int i = 0; i < Input.touchCount; i++)
+        {
+            Touch t = Input.GetTouch(i);
+
+            if (EventSystem.current != null && EventSystem.current.IsPointerOverGameObject(t.fingerId))
+            {
+                continue;
+            }
+
+            if (t.phase == TouchPhase.Ended && t.tapCount >= 2)
+            {
+                touchJump = true;
+                continue;
+            }
+
+            if (t.phase == TouchPhase.Began)
+            {
+                if (t.position.x < halfW && moveFingerId < 0)
+                {
+                    moveFingerId = t.fingerId;
+                    moveStartPos = t.position;
+                }
+                else if (t.position.x >= halfW && lookFingerId < 0)
+                {
+                    lookFingerId = t.fingerId;
+                }
+            }
+            else if (t.phase == TouchPhase.Ended || t.phase == TouchPhase.Canceled)
+            {
+                if (t.fingerId == moveFingerId) moveFingerId = -1;
+                if (t.fingerId == lookFingerId) lookFingerId = -1;
+            }
+            else // Moved || Stationary
+            {
+                if (t.fingerId == moveFingerId)
+                {
+                    Vector2 offset = (t.position - moveStartPos) / moveStickRadius;
+                    if (offset.sqrMagnitude > 1f) offset.Normalize();
+                    touchMove = offset; // y màn hình hướng lên = tiến (khớp trục Vertical)
+                }
+                else if (t.fingerId == lookFingerId)
+                {
+                    touchLook += t.deltaPosition;
+                }
+            }
         }
     }
 

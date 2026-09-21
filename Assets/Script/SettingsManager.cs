@@ -55,7 +55,7 @@ public class SettingsManager : MonoBehaviour
         // Đồng bộ trạng thái tâm ngắm với cài đặt
         if (crosshair == null)
         {
-            crosshair = FindObjectOfType<CrosshairReticle>();
+            crosshair = FindAnyObjectByType<CrosshairReticle>();
         }
         if (crosshair != null)
         {
@@ -99,6 +99,8 @@ public class SettingsManager : MonoBehaviour
         if (settingsPanel != null)
         {
             settingsPanel.SetActive(true);
+            MobileControlsOverlay controls = FindAnyObjectByType<MobileControlsOverlay>();
+            if (controls != null) controls.SetGameplayInputEnabled(false);
             Cursor.lockState = CursorLockMode.None;
             Cursor.visible = true;
 
@@ -115,6 +117,8 @@ public class SettingsManager : MonoBehaviour
         if (settingsPanel != null)
         {
             settingsPanel.SetActive(false);
+            MobileControlsOverlay controls = FindAnyObjectByType<MobileControlsOverlay>();
+            if (controls != null) controls.SetGameplayInputEnabled(true);
 
             // Hiện lại tâm ngắm khi đóng Settings
             if (crosshair != null)
@@ -129,8 +133,8 @@ public class SettingsManager : MonoBehaviour
             }
             else
             {
-                Cursor.lockState = CursorLockMode.Locked;
-                Cursor.visible = false;
+                // Về game: PC khóa lại chuột, điện thoại giữ nguyên cảm ứng
+                PlatformHelper.SetCursorLocked(true);
             }
         }
     }

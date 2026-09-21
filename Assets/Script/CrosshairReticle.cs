@@ -1,5 +1,4 @@
 using UnityEngine;
-using UnityEngine.XR;
 using TMPro;
 
 public class CrosshairReticle : MonoBehaviour
@@ -79,7 +78,7 @@ public class CrosshairReticle : MonoBehaviour
         ResolveAimCamera();
 
         // VR: XRI ray interactor sẽ hiển thị dấu ngắm riêng -> ẩn tâm màn hình
-        if (XRSettings.isDeviceActive)
+        if (PlatformHelper.IsXRDisplayRunning())
         {
             SetCanvasVisible(false);
             ClearAimed();

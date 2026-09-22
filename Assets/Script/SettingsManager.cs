@@ -226,12 +226,21 @@ public class SettingsManager : MonoBehaviour
         fpsDropdown.onValueChanged.AddListener(OnFPSSelected);
 
         fpsDropdown.value = 1;
-        OnFPSSelected(1);
+        // Đang cắm kính (Quest / Link / PCVR): bỏ cap FPS để compositor pacing
+        // theo tần số kính (72/90/120Hz). Cap 60 trên kính 72Hz+ gây giật đều
+        // dù đồng hồ FPS báo đủ.
+        if (PlatformHelper.IsXRDisplayRunning())
+            fpsDropdown.value = 3;
+        OnFPSSelected(fpsDropdown.value);
     }
 
     private void OnFPSSelected(int index)
     {
         QualitySettings.vSyncCount = 0;
+
+        // Trong VR luôn để không giới hạn, bất kể dropdown đang chọn gì.
+        if (PlatformHelper.IsXRDisplayRunning())
+            index = 3;
 
         switch (index)
         {

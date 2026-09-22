@@ -25,6 +25,10 @@ public class AudioManager : MonoBehaviour
         if (Instance == null)
         {
             Instance = this;
+            // DontDestroyOnLoad chỉ áp dụng cho root GameObject. AudioManager trong
+            // scene gallery đang nằm con (có parent) nên phải tách ra trước.
+            if (transform.parent != null)
+                transform.SetParent(null);
             DontDestroyOnLoad(gameObject);
 
             // Tự động tìm 2 AudioSource nếu chưa kéo

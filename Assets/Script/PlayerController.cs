@@ -1,5 +1,4 @@
 using UnityEngine;
-using UnityEngine.EventSystems;
 
 [RequireComponent(typeof(CharacterController))]
 [RequireComponent(typeof(Animator))]
@@ -10,8 +9,6 @@ public class PlayerController : MonoBehaviour
     [Header("Touch Controls (điện thoại)")]
     [Tooltip("Nửa trái vuốt = joystick di chuyển, nửa phải vuốt = xoay góc nhìn")]
     public float touchLookSensitivity = 0.25f;
-    [Tooltip("Bán kính joystick ảo (pixel)")]
-    public float moveStickRadius = 90f;
 
     [Header("Movement Settings")]
     public float walkSpeed = 2.0f;
@@ -38,9 +35,6 @@ public class PlayerController : MonoBehaviour
     private Vector2 touchMove;
     private Vector2 touchLook;
     private bool touchJump;
-    private int moveFingerId = -1;
-    private int lookFingerId = -1;
-    private Vector2 moveStartPos;
 
     void Start()
     {
@@ -78,17 +72,15 @@ public class PlayerController : MonoBehaviour
         bool isCursorLocked = Cursor.lockState == CursorLockMode.Locked;
         bool isFirstPerson = (camScript != null && camScript.IsFirstPerson);
 
+        // --- XOAY NHÌN (khác nhau giữa FPS/TPS, giữ tách riêng) ---
         if (isFirstPerson)
         {
-            // --- GÓC NHÌN THỨ NHẤT (FPS) ---
-            // 1. Di chuột ngang -> Xoay thân nhân vật trực tiếp
+            // Ở FPS, xoay thân nhân vật theo Mouse X / vuốt ngang
             if (isCursorLocked)
             {
                 float mouseX = Input.GetAxis("Mouse X") * mouseSensitivity;
                 transform.Rotate(Vector3.up * mouseX);
             }
-
-            // 1b. Cảm ứng: vuốt nửa phải để xoay (góc ngẩng do camera đảm nhận)
             if (touchLook.x != 0f)
             {
                 transform.Rotate(Vector3.up * touchLook.x * touchLookSensitivity);
@@ -97,54 +89,39 @@ public class PlayerController : MonoBehaviour
             {
                 camScript.AddLook(0f, touchLook.y * touchLookSensitivity);
             }
+        }
+        else if (touchLook != Vector2.zero && camScript != null)
+        {
+            // Ở TPS, vuốt xoay camera quanh nhân vật
+            camScript.AddLook(touchLook.x * touchLookSensitivity, touchLook.y * touchLookSensitivity);
+        }
 
-            // 2. Di chuyển theo hướng nhân vật đang quay mặt
-            if (direction.magnitude >= 0.1f)
+        // --- DI CHUYỂN (logic chung, chỉ khác cách tính moveDir) ---
+        if (direction.magnitude >= 0.1f)
+        {
+            Vector3 moveDir;
+            if (isFirstPerson)
             {
-                Vector3 moveDir = transform.right * horizontal + transform.forward * vertical;
-                controller.Move(moveDir.normalized * targetSpeed * Time.deltaTime);
-
-                float animSpeed = isRunning ? 1.0f : 0.5f;
-                animator.SetFloat("Speed", animSpeed, 0.1f, Time.deltaTime);
-
-                // Phát tiếng bước chân
-                HandleFootstepSounds(isRunning);
+                moveDir = transform.right * horizontal + transform.forward * vertical;
             }
             else
-            {
-                animator.SetFloat("Speed", 0f, 0.05f, Time.deltaTime);
-                stepTimer = 0f; // Reset đếm giờ bước chân khi đứng yên
-            }
-        }
-        else
-        {
-            // --- GÓC NHÌN THỨ BA (TPS) ---
-            // Cảm ứng: vuốt nửa phải xoay camera quanh nhân vật
-            if (touchLook != Vector2.zero && camScript != null)
-            {
-                camScript.AddLook(touchLook.x * touchLookSensitivity, touchLook.y * touchLookSensitivity);
-            }
-
-            if (direction.magnitude >= 0.1f)
             {
                 float targetAngle = Mathf.Atan2(direction.x, direction.z) * Mathf.Rad2Deg + cameraTransform.eulerAngles.y;
                 float angle = Mathf.SmoothDampAngle(transform.eulerAngles.y, targetAngle, ref turnSmoothVelocity, turnSmoothTime);
                 transform.rotation = Quaternion.Euler(0f, angle, 0f);
-
-                Vector3 moveDir = Quaternion.Euler(0f, targetAngle, 0f) * Vector3.forward;
-                controller.Move(moveDir.normalized * targetSpeed * Time.deltaTime);
-
-                float animSpeed = isRunning ? 1.0f : 0.5f;
-                animator.SetFloat("Speed", animSpeed, 0.1f, Time.deltaTime);
-
-                // Phát tiếng bước chân
-                HandleFootstepSounds(isRunning);
+                moveDir = Quaternion.Euler(0f, targetAngle, 0f) * Vector3.forward;
             }
-            else
-            {
-                animator.SetFloat("Speed", 0f, 0.05f, Time.deltaTime);
-                stepTimer = 0f; // Reset đếm giờ bước chân khi đứng yên
-            }
+
+            controller.Move(moveDir.normalized * targetSpeed * Time.deltaTime);
+            animator.SetFloat("Speed", isRunning ? 1.0f : 0.5f, 0.1f, Time.deltaTime);
+
+            // Phát tiếng bước chân
+            HandleFootstepSounds(isRunning);
+        }
+        else
+        {
+            animator.SetFloat("Speed", 0f, 0.05f, Time.deltaTime);
+            stepTimer = 0f; // Reset đếm giờ bước chân khi đứng yên
         }
 
         // Xử lý Nhảy và Trọng lực (tap 2 ngón trên điện thoại = nhảy)
@@ -163,85 +140,28 @@ public class PlayerController : MonoBehaviour
         velocity.y += gravity * Time.deltaTime;
         controller.Move(velocity * Time.deltaTime);
 
-        if (controller.isGrounded)
+        // Dùng lại isGrounded đã cache đầu frame, không gọi controller.isGrounded lần 2
+        if (isGrounded)
         {
             animator.SetBool("IsGrounded", true);
         }
     }
 
-    // Quét cảm ứng mỗi frame: nửa trái = joystick di chuyển, nửa phải = xoay nhìn,
-    // tap 2 ngón = nhảy. Chạm bắt đầu/kết thúc trên UI thì bỏ qua (để bấm nút).
-    // Desktop (không có touch) tự bỏ qua, không ảnh hưởng chuột/phím.
+    // Overlay luôn được ViewModeController tự tạo lúc Start nên là nguồn duy nhất.
+    // Nhảy tap-2-ngón do overlay phát hiện (ConsumeJumpPressed).
     private void UpdateTouchInput()
     {
-        touchMove = Vector2.zero;
-        touchLook = Vector2.zero;
-        touchJump = false;
-
-        // MobileControlsOverlay nhận pointer từ Input System UI và chuyển nó thành
-        // trục di chuyển / delta vuốt. Đường touch cũ phía dưới vẫn là dự phòng
-        // cho scene chưa có overlay hoặc các UI tùy biến.
-        if (MobileControlsOverlay.IsAvailable)
+        if (!MobileControlsOverlay.IsAvailable)
         {
-            touchMove = MobileControlsOverlay.Move;
-            touchLook = MobileControlsOverlay.ConsumeLookDelta();
+            touchMove = Vector2.zero;
+            touchLook = Vector2.zero;
+            touchJump = false;
             return;
         }
 
-        if (Input.touchCount == 0)
-        {
-            moveFingerId = -1;
-            lookFingerId = -1;
-            return;
-        }
-
-        float halfW = Screen.width * 0.5f;
-        for (int i = 0; i < Input.touchCount; i++)
-        {
-            Touch t = Input.GetTouch(i);
-
-            if (EventSystem.current != null && EventSystem.current.IsPointerOverGameObject(t.fingerId))
-            {
-                continue;
-            }
-
-            if (t.phase == TouchPhase.Ended && t.tapCount >= 2)
-            {
-                touchJump = true;
-                continue;
-            }
-
-            if (t.phase == TouchPhase.Began)
-            {
-                if (t.position.x < halfW && moveFingerId < 0)
-                {
-                    moveFingerId = t.fingerId;
-                    moveStartPos = t.position;
-                }
-                else if (t.position.x >= halfW && lookFingerId < 0)
-                {
-                    lookFingerId = t.fingerId;
-                }
-            }
-            else if (t.phase == TouchPhase.Ended || t.phase == TouchPhase.Canceled)
-            {
-                if (t.fingerId == moveFingerId) moveFingerId = -1;
-                if (t.fingerId == lookFingerId) lookFingerId = -1;
-            }
-            else // Moved || Stationary
-            {
-                if (t.fingerId == moveFingerId)
-                {
-                    Vector2 offset = (t.position - moveStartPos) / moveStickRadius;
-                    if (offset.sqrMagnitude > 1f) offset.Normalize();
-                    touchMove = offset; // y màn hình hướng lên = tiến (khớp trục Vertical)
-                }
-                else if (t.fingerId == lookFingerId)
-                {
-                    touchLook += t.deltaPosition;
-                }
-            }
-        }
+        touchMove = MobileControlsOverlay.Move;
+        touchLook = MobileControlsOverlay.ConsumeLookDelta();
+        touchJump = MobileControlsOverlay.ConsumeJumpPressed();
     }
 
     // Hàm bổ sung: Quản lý tần suất phát tiếng bước chân khi chạm đất

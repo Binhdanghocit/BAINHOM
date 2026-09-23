@@ -1,26 +1,50 @@
 using UnityEngine;
-using UnityEngine.EventSystems;
 using UnityEngine.UI;
 
 /// <summary>
-/// UI cảm ứng được tạo một lần lúc chạy: joystick trái, vùng vuốt phải và nút
-/// tương tác. Nó dùng EventSystem/Input System UI Module đang có trong scene;
-/// PlayerController đọc các giá trị qua thuộc tính static bên dưới.
+/// UI cảm ứng tạo runtime: joystick di chuyển (nổi, xuất hiện tại điểm chạm
+/// trong nửa trái màn hình), vùng vuốt phải để nhìn, và nút Nhảy góc phải dưới.
+/// Đọc Input.touch trực tiếp (không qua UI EventSystem) để chạy được cả trên
+/// emulator không phát PointerEvent.
 /// </summary>
 public class MobileControlsOverlay : MonoBehaviour
 {
     public static bool IsAvailable { get; private set; }
     public static Vector2 Move { get; private set; }
+
+    // true = joystick nổi (xuất hiện tại điểm chạm), false = cố định góc trái dưới.
+    // Đổi qua SettingsManager.SetFloatingJoystickEnabled().
+    public static bool FloatingJoystickEnabled { get; private set; } = true;
+
+    private static readonly Vector2 FixedStickAnchoredPos = new Vector2(170, 170);
+    private const float JumpZoneWidth = 300f;
+    private const float JumpZoneHeight = 320f;
+
     private static Vector2 lookDelta;
-    private static bool interactionPressed;
+    private static bool jumpPressed;
     private static bool gameplayInputEnabled = true;
+
+    // Nhúm 2 ngón trên nửa phải = zoom camera (dãn = lại gần).
+    // True trong frame đang pinch để PlayerInteraction hủy tap tương tác.
+    public static bool PinchActive { get; private set; }
+    private static float pinchAccum;
+
+    [Header("Joystick")]
+    public float stickRadius = 90f;
+
+    private RectTransform stickRoot;
+    private RectTransform knob;
 
     private int moveFingerId = -1;
     private int lookFingerId = -1;
-    private int interactFingerId = -1;
+    private int jumpFingerId = -1;
+    private int pinchIdA = -1;
+    private int pinchIdB = -1;
+    private float prevPinchDist;
+    private bool prevPinchValid;
     private Vector2 moveStart;
-    private Vector2 interactStart;
-    private float interactStartTime;
+    private Vector2 jumpStart;
+    private float jumpTouchStartTime;
 
     public static Vector2 ConsumeLookDelta()
     {
@@ -29,11 +53,28 @@ public class MobileControlsOverlay : MonoBehaviour
         return result;
     }
 
-    public static bool ConsumeInteractionPressed()
+    public static bool ConsumeJumpPressed()
     {
-        bool result = interactionPressed;
-        interactionPressed = false;
+        bool result = jumpPressed;
+        jumpPressed = false;
         return result;
+    }
+
+    // Độ dãn 2 ngón từ frame trước (pixel, dương = dãn ra). Camera đọc để zoom.
+    public static float ConsumePinchDelta()
+    {
+        float result = pinchAccum;
+        pinchAccum = 0f;
+        return result;
+    }
+
+    // Vùng dành cho joystick (nửa trái) và nút Nhảy (góc phải dưới), dùng chung
+    // bởi PlayerInteraction để tap tương tác không đè lên 2 vùng này.
+    public static bool IsInControlZone(Vector2 screenPos)
+    {
+        bool inMoveZone = screenPos.x < Screen.width * 0.5f;
+        bool inJumpZone = screenPos.x >= Screen.width - JumpZoneWidth && screenPos.y <= JumpZoneHeight;
+        return inMoveZone || inJumpZone;
     }
 
     public void SetGameplayInputEnabled(bool enabled)
@@ -43,11 +84,23 @@ public class MobileControlsOverlay : MonoBehaviour
         {
             Move = Vector2.zero;
             lookDelta = Vector2.zero;
-            interactionPressed = false;
+            jumpPressed = false;
+            pinchAccum = 0f;
+            PinchActive = false;
             moveFingerId = -1;
             lookFingerId = -1;
-            interactFingerId = -1;
+            jumpFingerId = -1;
+            pinchIdA = -1;
+            pinchIdB = -1;
+            prevPinchValid = false;
+            HideStick();
         }
+    }
+
+    // Gọi từ SettingsManager khi người dùng đổi toggle "Joystick nổi"
+    public static void SetFloatingJoystickEnabled(bool enabled)
+    {
+        FloatingJoystickEnabled = enabled;
     }
 
     public static MobileControlsOverlay FindOrCreate()
@@ -56,9 +109,9 @@ public class MobileControlsOverlay : MonoBehaviour
         if (existing != null) return existing;
 
         GameObject root = new GameObject("Mobile Controls Canvas", typeof(Canvas), typeof(CanvasScaler), typeof(GraphicRaycaster), typeof(MobileControlsOverlay));
-        Canvas canvas = root.GetComponent<Canvas>();
-        canvas.renderMode = RenderMode.ScreenSpaceOverlay;
-        canvas.sortingOrder = 1000;
+        Canvas c = root.GetComponent<Canvas>();
+        c.renderMode = RenderMode.ScreenSpaceOverlay;
+        c.sortingOrder = 1000;
         CanvasScaler scaler = root.GetComponent<CanvasScaler>();
         scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
         scaler.referenceResolution = new Vector2(1920, 1080);
@@ -79,7 +132,7 @@ public class MobileControlsOverlay : MonoBehaviour
         IsAvailable = false;
         Move = Vector2.zero;
         lookDelta = Vector2.zero;
-        interactionPressed = false;
+        jumpPressed = false;
     }
 
     public void SetVisible(bool visible)
@@ -87,31 +140,32 @@ public class MobileControlsOverlay : MonoBehaviour
         gameObject.SetActive(visible);
         if (!visible) Move = Vector2.zero;
     }
-
-    // Một số emulator Android không chuyển Touch thành PointerEvent của
-    // InputSystemUIInputModule. Đọc Touch trực tiếp ở đây để joystick/nút vẫn
-    // chạy; các callback UI bên dưới vẫn giữ cho thiết bị thật khi chúng hoạt động.
     private void Update()
     {
         if (!PlatformHelper.IsTouchDevice() || !gameplayInputEnabled) return;
 
+        // Quét trước: 2 ngón cùng lúc trên nửa phải (trừ vùng Nhảy) = nhúm zoom.
+        // Hai ngón này không xoay camera trong lúc pinch.
+        UpdatePinchState();
+
         for (int i = 0; i < Input.touchCount; i++)
         {
             Touch touch = Input.GetTouch(i);
-            bool isInteractArea = touch.position.x >= Screen.width - 300f && touch.position.y <= 320f;
+            bool isJumpArea = touch.position.x >= Screen.width - JumpZoneWidth && touch.position.y <= JumpZoneHeight;
 
             if (touch.phase == TouchPhase.Began)
             {
-                if (isInteractArea && interactFingerId < 0)
+                if (isJumpArea && jumpFingerId < 0)
                 {
-                    interactFingerId = touch.fingerId;
-                    interactStart = touch.position;
-                    interactStartTime = Time.unscaledTime;
+                    jumpFingerId = touch.fingerId;
+                    jumpStart = touch.position;
+                    jumpTouchStartTime = Time.unscaledTime;
                 }
                 else if (touch.position.x < Screen.width * 0.5f && moveFingerId < 0)
                 {
                     moveFingerId = touch.fingerId;
                     moveStart = touch.position;
+                    ShowStickAt(FloatingJoystickEnabled ? moveStart : (Vector2?)null);
                 }
                 else if (lookFingerId < 0)
                 {
@@ -125,64 +179,114 @@ public class MobileControlsOverlay : MonoBehaviour
                 {
                     moveFingerId = -1;
                     Move = Vector2.zero;
+                    HideStick();
                 }
                 else
                 {
-                    Vector2 offset = (touch.position - moveStart) / 90f;
+                    Vector2 offset = (touch.position - moveStart) / stickRadius;
                     Move = Vector2.ClampMagnitude(offset, 1f);
+                    UpdateKnob(Move);
                 }
             }
             else if (touch.fingerId == lookFingerId)
             {
                 if (touch.phase == TouchPhase.Ended || touch.phase == TouchPhase.Canceled)
                     lookFingerId = -1;
-                else if (touch.phase == TouchPhase.Moved)
+                else if (touch.phase == TouchPhase.Moved && !IsPinchFinger(touch.fingerId))
                     lookDelta += touch.deltaPosition;
             }
-            else if (touch.fingerId == interactFingerId &&
+            else if (touch.fingerId == jumpFingerId &&
                      (touch.phase == TouchPhase.Ended || touch.phase == TouchPhase.Canceled))
             {
                 if (touch.phase == TouchPhase.Ended &&
-                    Time.unscaledTime - interactStartTime <= 0.5f &&
-                    (touch.position - interactStart).sqrMagnitude <= 900f)
-                    interactionPressed = true;
-                interactFingerId = -1;
+                    Time.unscaledTime - jumpTouchStartTime <= 0.5f &&
+                    (touch.position - jumpStart).sqrMagnitude <= 900f)
+                    jumpPressed = true;
+                jumpFingerId = -1;
             }
+        }
+    }
+
+    private bool IsPinchFinger(int fingerId)
+    {
+        return PinchActive && (fingerId == pinchIdA || fingerId == pinchIdB);
+    }
+
+    private void UpdatePinchState()
+    {
+        pinchIdA = -1;
+        pinchIdB = -1;
+        PinchActive = false;
+
+        float halfW = Screen.width * 0.5f;
+        Vector2 posA = Vector2.zero;
+        Vector2 posB = Vector2.zero;
+
+        for (int i = 0; i < Input.touchCount; i++)
+        {
+            Touch t = Input.GetTouch(i);
+            if (t.phase == TouchPhase.Ended || t.phase == TouchPhase.Canceled) continue;
+            if (t.fingerId == moveFingerId || t.fingerId == jumpFingerId) continue;
+            if (t.position.x >= Screen.width - JumpZoneWidth && t.position.y <= JumpZoneHeight) continue;
+            if (t.position.x < halfW) continue;
+
+            if (pinchIdA < 0) { pinchIdA = t.fingerId; posA = t.position; }
+            else if (pinchIdB < 0) { pinchIdB = t.fingerId; posB = t.position; }
+        }
+
+        if (pinchIdA >= 0 && pinchIdB >= 0)
+        {
+            PinchActive = true;
+            float dist = Vector2.Distance(posA, posB);
+            if (prevPinchValid)
+            {
+                pinchAccum += dist - prevPinchDist;
+            }
+            prevPinchDist = dist;
+            prevPinchValid = true;
+        }
+        else
+        {
+            prevPinchValid = false;
         }
     }
 
     private void CreateControls()
     {
-        VirtualStick stick = CreatePanel<VirtualStick>("Move Joystick", new Vector2(280, 280), new Vector2(0, 0), new Vector2(0, 0), new Vector2(170, 170));
-        stick.background.color = new Color(1f, 1f, 1f, 0.18f);
-        stick.CreateKnob();
+        stickRoot = CreatePanel("Move Joystick", new Vector2(280, 280), Vector2.zero, Vector2.zero, FixedStickAnchoredPos);
+        stickRoot.GetComponent<Image>().color = new Color(1f, 1f, 1f, 0.18f);
+        CreateKnob();
+        HideStick(); // Joystick nổi: ẩn tới khi có ngón tay chạm xuống
 
-        LookZone look = CreatePanel<LookZone>("Look Swipe Zone", Vector2.zero, new Vector2(0.5f, 0), new Vector2(1, 1), Vector2.zero);
-        look.background.color = Color.clear;
-
-        Button interact = CreatePanel<Button>("Interact Button", new Vector2(180, 180), new Vector2(1, 0), new Vector2(1, 0), new Vector2(-150, 170));
-        interact.GetComponent<Image>().color = new Color(0.12f, 0.5f, 0.95f, 0.78f);
-        Text label = CreateLabel(interact.transform, "TƯƠNG TÁC");
-        // Không dùng Button.onClick: emulator có thể không phát UI pointer event;
-        // Update() phía trên nhận Touch trực tiếp cho cả joystick và nút này.
+        RectTransform jumpButton = CreatePanel("Jump Button", new Vector2(180, 180), new Vector2(1, 0), new Vector2(1, 0), new Vector2(-150, 170));
+        jumpButton.GetComponent<Image>().color = new Color(0.95f, 0.55f, 0.1f, 0.78f);
+        CreateLabel(jumpButton, "NHẢY");
     }
 
-    private T CreatePanel<T>(string name, Vector2 size, Vector2 anchorMin, Vector2 anchorMax, Vector2 anchoredPosition) where T : Component
+    private RectTransform CreatePanel(string name, Vector2 size, Vector2 anchorMin, Vector2 anchorMax, Vector2 anchoredPosition)
     {
-        GameObject go = new GameObject(name, typeof(RectTransform), typeof(Image), typeof(T));
+        GameObject go = new GameObject(name, typeof(RectTransform), typeof(Image));
         go.transform.SetParent(transform, false);
         RectTransform rect = go.GetComponent<RectTransform>();
         rect.anchorMin = anchorMin;
         rect.anchorMax = anchorMax;
         rect.sizeDelta = size;
         rect.anchoredPosition = anchoredPosition;
-        // Điều khiển dùng Input.touch trực tiếp, vì vậy không được chặn raycast
-        // của các popup, Slider và Button Settings nằm phía dưới.
-        go.GetComponent<Image>().raycastTarget = false;
-        return go.GetComponent<T>();
+        go.GetComponent<Image>().raycastTarget = false; // input đọc qua Input.touch trực tiếp
+        return rect;
     }
 
-    private static Text CreateLabel(Transform parent, string value)
+    private void CreateKnob()
+    {
+        GameObject go = new GameObject("Thumb", typeof(RectTransform), typeof(Image));
+        go.transform.SetParent(stickRoot, false);
+        knob = go.GetComponent<RectTransform>();
+        knob.sizeDelta = new Vector2(100, 100);
+        go.GetComponent<Image>().color = new Color(1f, 1f, 1f, 0.45f);
+        go.GetComponent<Image>().raycastTarget = false;
+    }
+
+    private static void CreateLabel(Transform parent, string value)
     {
         GameObject go = new GameObject("Label", typeof(RectTransform), typeof(Text));
         go.transform.SetParent(parent, false);
@@ -196,53 +300,58 @@ public class MobileControlsOverlay : MonoBehaviour
         text.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
         text.fontSize = 28;
         text.color = Color.white;
-        return text;
     }
 
-    private class VirtualStick : MonoBehaviour, IPointerDownHandler, IDragHandler, IPointerUpHandler
+    // screenPos == null -> dùng vị trí cố định góc trái dưới (khi tắt joystick nổi)
+    private void ShowStickAt(Vector2? screenPos)
     {
-        public Image background;
-        private RectTransform rect;
-        private RectTransform knob;
+        if (stickRoot == null) return;
+        stickRoot.gameObject.SetActive(true);
 
-        private void Awake()
+        if (screenPos.HasValue)
         {
-            background = GetComponent<Image>();
-            rect = GetComponent<RectTransform>();
+            RectTransformUtility.ScreenPointToLocalPointInRectangle((RectTransform)transform, screenPos.Value, null, out Vector2 local);
+            RectTransform canvasRect = (RectTransform)transform;
+            Vector2 bottomLeftOrigin = local + canvasRect.rect.size * canvasRect.pivot;
+
+            // Giữ joystick không tràn ra ngoài mép màn hình
+            Vector2 half = stickRoot.sizeDelta * 0.5f;
+            bottomLeftOrigin.x = Mathf.Clamp(bottomLeftOrigin.x, half.x, canvasRect.rect.width * 0.5f - half.x);
+            bottomLeftOrigin.y = Mathf.Clamp(bottomLeftOrigin.y, half.y, canvasRect.rect.height - half.y);
+
+            stickRoot.anchorMin = Vector2.zero;
+            stickRoot.anchorMax = Vector2.zero;
+            stickRoot.anchoredPosition = bottomLeftOrigin;
+        }
+        else
+        {
+            stickRoot.anchorMin = Vector2.zero;
+            stickRoot.anchorMax = Vector2.zero;
+            stickRoot.anchoredPosition = FixedStickAnchoredPos;
         }
 
-        public void CreateKnob()
-        {
-            GameObject go = new GameObject("Thumb", typeof(RectTransform), typeof(Image));
-            go.transform.SetParent(transform, false);
-            knob = go.GetComponent<RectTransform>();
-            knob.sizeDelta = new Vector2(100, 100);
-            go.GetComponent<Image>().color = new Color(1f, 1f, 1f, 0.45f);
-            go.GetComponent<Image>().raycastTarget = false;
-        }
-
-        public void OnPointerDown(PointerEventData eventData) => UpdateStick(eventData);
-        public void OnDrag(PointerEventData eventData) => UpdateStick(eventData);
-        public void OnPointerUp(PointerEventData eventData)
-        {
-            Move = Vector2.zero;
-            if (knob != null) knob.anchoredPosition = Vector2.zero;
-        }
-
-        private void UpdateStick(PointerEventData eventData)
-        {
-            if (rect == null) rect = GetComponent<RectTransform>();
-            RectTransformUtility.ScreenPointToLocalPointInRectangle(rect, eventData.position, eventData.pressEventCamera, out Vector2 local);
-            Vector2 radius = rect.rect.size * 0.5f;
-            Move = new Vector2(local.x / radius.x, local.y / radius.y);
-            Move = Vector2.ClampMagnitude(Move, 1f);
-            if (knob != null) knob.anchoredPosition = Move * (radius - knob.sizeDelta * 0.5f);
-        }
+        UpdateKnob(Vector2.zero);
     }
 
-    private class LookZone : MonoBehaviour
+    private void HideStick()
     {
-        public Image background;
-        private void Awake() => background = GetComponent<Image>();
+        if (stickRoot == null) return;
+        if (FloatingJoystickEnabled)
+        {
+            stickRoot.gameObject.SetActive(false);
+        }
+        else
+        {
+            stickRoot.gameObject.SetActive(true);
+            stickRoot.anchoredPosition = FixedStickAnchoredPos;
+        }
+        UpdateKnob(Vector2.zero);
+    }
+
+    private void UpdateKnob(Vector2 normalizedMove)
+    {
+        if (knob == null || stickRoot == null) return;
+        Vector2 radius = stickRoot.rect.size * 0.5f;
+        knob.anchoredPosition = normalizedMove * (radius - knob.sizeDelta * 0.5f);
     }
 }

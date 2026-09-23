@@ -11,6 +11,8 @@ public class ThirdPersonCamera : MonoBehaviour
     public float minDistance = 0.0f;           // 0 = Góc nhìn thứ nhất (First-Person)
     public float maxDistance = 6.0f;           // Tối đa góc nhìn thứ 3
     public float zoomSpeed = 2.0f;             // Tốc độ Zoom
+    [Tooltip("Tốc độ zoom khi nhúm 2 ngón trên điện thoại (đơn vị khoảng cách / pixel dãn)")]
+    public float touchZoomSensitivity = 0.01f;
 
     [Header("Character Renderer (Ẩn mesh khi First-Person)")]
     [Tooltip("Kéo các mesh của nhân vật vào (nếu nhiều mesh: tóc, mũ, thân...). Để TRỐNG = tự tìm toàn bộ Renderer con của Target.")]
@@ -117,11 +119,27 @@ public class ThirdPersonCamera : MonoBehaviour
             distance -= scroll * zoomSpeed;
             distance = Mathf.Clamp(distance, minDistance, maxDistance);
         }
+
+        // Mobile: nhúm 2 ngón trên nửa phải để zoom (dãn = lại gần, chụm = ra xa).
+        // Zoom sát qua ngưỡng FirstPersonThreshold sẽ tự sang góc nhìn thứ 1 như PC.
+        float pinch = MobileControlsOverlay.ConsumePinchDelta();
+        if (pinch != 0f)
+        {
+            distance = Mathf.Clamp(distance - pinch * touchZoomSensitivity, minDistance, maxDistance);
+        }
     }
 
     void LateUpdate()
     {
         if (target == null) return;
+
+        // FPS: camera luôn bám yaw của nhân vật (fix mobile chỉ kéo lên/xuống được).
+        // Trên PC dòng này đã có trong Update khi khóa chuột, nhưng mobile không khóa
+        // chuột nên currentX bị đứng yên -> vuốt ngang xoay thân mà camera không xoay theo.
+        if (IsFirstPerson)
+        {
+            currentX = target.eulerAngles.y;
+        }
 
         // Tính góc xoay từ chuột
         Quaternion rotation = Quaternion.Euler(currentY, currentX, 0);

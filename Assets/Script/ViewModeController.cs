@@ -74,11 +74,23 @@ public class ViewModeController : MonoBehaviour
         // Trên VR luôn là Góc thứ 1 (HMD), không cho phép chuyển góc
         if (isVR) return;
 
-        // Desktop/điện thoại: phím C chuyển nhanh Góc 1 <-> Góc 3
-        if (Input.GetKeyDown(toggleViewKey) && thirdPersonCamera != null)
+        // Desktop/điện thoại: phím C chuyển Góc 1 <-> Góc 3.
+        // Mobile đổi góc bằng nhúm 2 ngón zoom (qua ThirdPersonCamera).
+        if (Input.GetKeyDown(toggleViewKey))
         {
-            thirdPersonCamera.distance = thirdPersonCamera.IsFirstPerson ? 2.5f : 0f;
+            ToggleView();
         }
+    }
+
+    // Đổi góc nhìn bằng phím C trên PC
+    public void ToggleView()
+    {
+        if (thirdPersonCamera == null)
+        {
+            Debug.LogWarning("[ViewMode] Chưa gán thirdPersonCamera -> không đổi được góc nhìn.");
+            return;
+        }
+        thirdPersonCamera.distance = thirdPersonCamera.IsFirstPerson ? 2.5f : 0f;
     }
 
     private void ApplyMode(bool firstTime)

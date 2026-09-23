@@ -43,4 +43,37 @@ public static class HandTriggerInput
 
         return device.TryGetFeatureValue(CommonUsages.triggerButton, out bool pressed) && pressed;
     }
+
+    private static bool wasMenu;
+    private static int lastMenuFrame = -1;
+    private static bool cachedMenu;
+
+    // Trả về true đúng 1 khung khi bấm nút menu controller (nút ≡ tay trái trên
+    // Quest; tay phải là nút hệ thống nên không tới app). Dùng để mở/đóng Settings
+    // trong VR, thay phím ESC trên PC.
+    public static bool WasMenuButtonPressedThisFrame()
+    {
+        if (Time.frameCount == lastMenuFrame)
+        {
+            return cachedMenu;
+        }
+
+        lastMenuFrame = Time.frameCount;
+
+        if (!left.isValid) left = InputDevices.GetDeviceAtXRNode(XRNode.LeftHand);
+        if (!right.isValid) right = InputDevices.GetDeviceAtXRNode(XRNode.RightHand);
+
+        bool menuNow = ReadMenu(left) || ReadMenu(right);
+
+        cachedMenu = menuNow && !wasMenu;
+        wasMenu = menuNow;
+        return cachedMenu;
+    }
+
+    private static bool ReadMenu(InputDevice device)
+    {
+        if (!device.isValid) return false;
+
+        return device.TryGetFeatureValue(CommonUsages.menuButton, out bool pressed) && pressed;
+    }
 }

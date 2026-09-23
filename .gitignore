@@ -107,3 +107,7 @@ InitTestScene*.unity*
 
 # Auto-generated cache in Assets folder
 /[Aa]ssets/[Ss]ceneDependencyCache*
+
+# Local build outputs va crash recovery - khong push len git
+/Android/
+/Assets/_Recovery/

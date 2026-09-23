@@ -71,10 +71,6 @@ public class PlayerInteraction : MonoBehaviour
 
     void Update()
     {
-        if (MobileControlsOverlay.ConsumeInteractionPressed())
-        {
-            TryInteract();
-        }
         if (Input.GetMouseButtonDown(0) && Cursor.lockState == CursorLockMode.Locked)
         {
             TryInteract();
@@ -82,8 +78,7 @@ public class PlayerInteraction : MonoBehaviour
         HandleTouchTap();
     }
 
-    // Gán trực tiếp cho Button "Tương tác" trên MobileControlsOverlay, hoặc dùng
-    // trong UnityEvent của một UI mobile tự thiết kế.
+    // Gọi tay từ UnityEvent của một UI mobile tự thiết kế (nếu có).
     public void Interact()
     {
         TryInteract();
@@ -92,11 +87,31 @@ public class PlayerInteraction : MonoBehaviour
     private int tapFingerId = -1;
     private float tapStartTime;
     private Vector2 tapStartPos;
+    private SettingsManager settingsManager;
+
+    private void Start()
+    {
+        settingsManager = FindAnyObjectByType<SettingsManager>();
+    }
 
     // Tap 1 ngón nhanh trên điện thoại = click tương tác.
     // Vuốt dài (xoay/joystick) và chạm trên UI tự bị loại.
     private void HandleTouchTap()
     {
+        // Đang nhúm 2 ngón zoom: hủy tap tương tác, không mở popup nhầm
+        if (MobileControlsOverlay.PinchActive)
+        {
+            tapFingerId = -1;
+            return;
+        }
+
+        // Settings đang mở: tap chỉ dành cho UI, không mở popup tranh/NPC
+        if (settingsManager != null && settingsManager.IsSettingsOpen())
+        {
+            tapFingerId = -1;
+            return;
+        }
+
         if (Input.touchCount == 0)
         {
             tapFingerId = -1;
@@ -111,6 +126,7 @@ public class PlayerInteraction : MonoBehaviour
             {
                 if (tapFingerId >= 0) continue;
                 if (EventSystem.current != null && EventSystem.current.IsPointerOverGameObject(t.fingerId)) continue;
+                if (MobileControlsOverlay.IsInControlZone(t.position)) continue; // nửa trái (joystick) + góc phải dưới (Nhảy)
                 tapFingerId = t.fingerId;
                 tapStartTime = Time.unscaledTime;
                 tapStartPos = t.position;
@@ -120,7 +136,7 @@ public class PlayerInteraction : MonoBehaviour
                 if (t.fingerId != tapFingerId) continue;
                 tapFingerId = -1;
                 if (t.phase != TouchPhase.Ended) continue;
-                if (t.tapCount != 1) continue; // tap 2 ngón dành cho nhảy (PlayerController)
+                if (t.tapCount != 1) continue; // chỉ tap 1 ngón mới tương tác
                 if (Time.unscaledTime - tapStartTime > tapMaxDuration) continue;
                 if ((t.position - tapStartPos).magnitude > tapMaxMovePx) continue;
 

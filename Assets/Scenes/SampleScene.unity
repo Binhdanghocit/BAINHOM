@@ -37547,11 +37547,11 @@ MonoBehaviour:
   bgmSource: {fileID: 1962647759}
   sfxSource: {fileID: 1962647758}
   bgmClips:
-  - {fileID: 8300000, guid: b5e434801fa0ad14896c6b19f2ee4d6c, type: 3}
+  - {fileID: 8300000, guid: 444945bdc0270134a968e115c34a6fe4, type: 3}
+  - {fileID: 8300000, guid: f5ffe0a7faa73ea4bba952439a4aa7dd, type: 3}
+  - {fileID: 8300000, guid: 2ab03a9b0d473bb459d7e190223dbff9, type: 3}
+  - {fileID: 8300000, guid: f4fbc8c9b48c99642af0e5f1ef138962, type: 3}
   - {fileID: 8300000, guid: f8d8fe3b4af92e04185146d6ce4f5d4e, type: 3}
-  - {fileID: 8300000, guid: 5e984d980f1de564db0a1b3d9098a0f9, type: 3}
-  - {fileID: 0}
-  - {fileID: 0}
   footstepClip: {fileID: 8300000, guid: 620cc173734a77040a02edea8046c28d, type: 3}
   jumpClip: {fileID: 8300000, guid: c67094411db019d48a61f26811124bcc, type: 3}
   inspectClip: {fileID: 8300000, guid: e8af9035f5758f44da37af4225a02619, type: 3}

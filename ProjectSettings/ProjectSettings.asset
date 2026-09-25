@@ -150,7 +150,7 @@ PlayerSettings:
   tvOSBundleVersion: 1.0
   bundleVersion: versionCode 1
   preloadedAssets:
-  - {fileID: -1431317129044341113, guid: cfa7a3ec4d784044d9245e72d922248a, type: 2}
+  - {fileID: 5348879478428243115, guid: cfa7a3ec4d784044d9245e72d922248a, type: 2}
   metroInputSource: 0
   wsaTransparentSwapchain: 0
   xboxOneDisableKinectGpuReservation: 1
@@ -181,7 +181,7 @@ PlayerSettings:
     tvOS: 0
   overrideDefaultApplicationIdentifier: 1
   AndroidBundleVersionCode: 1
-  AndroidMinSdkVersion: 29
+  AndroidMinSdkVersion: 32
   AndroidTargetSdkVersion: 0
   AndroidPreferredInstallLocation: 0
   AndroidPreferredDataLocation: 1

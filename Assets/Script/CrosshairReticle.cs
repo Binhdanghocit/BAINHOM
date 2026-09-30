@@ -53,8 +53,10 @@ public class CrosshairReticle : MonoBehaviour
         var canvas = canvasGo.AddComponent<Canvas>();
         canvas.renderMode = RenderMode.ScreenSpaceOverlay;
         canvas.sortingOrder = 100;
-        canvasGo.AddComponent<UnityEngine.UI.CanvasScaler>().uiScaleMode = UnityEngine.UI.CanvasScaler.ScaleMode.ScaleWithScreenSize;
-        canvasGo.AddComponent<UnityEngine.UI.GraphicRaycaster>();
+        var scaler = canvasGo.AddComponent<UnityEngine.UI.CanvasScaler>();
+        scaler.uiScaleMode = UnityEngine.UI.CanvasScaler.ScaleMode.ScaleWithScreenSize;
+        scaler.referenceResolution = new Vector2(1920, 1080);
+        scaler.matchWidthOrHeight = 0.5f;
 
         var go = new GameObject("Reticle");
         go.transform.SetParent(canvasGo.transform, false);
@@ -65,6 +67,7 @@ public class CrosshairReticle : MonoBehaviour
         reticleText.fontStyle = FontStyles.Bold;
         reticleText.alignment = TextAlignmentOptions.Center;
         reticleText.color = normalColor;
+        reticleText.raycastTarget = false; // Không chặn click chuột/cảm ứng ở tâm màn hình
 
         var rect = reticleText.rectTransform;
         rect.anchorMin = new Vector2(0.5f, 0.5f);
@@ -85,7 +88,7 @@ public class CrosshairReticle : MonoBehaviour
             return;
         }
 
-        // Có UI đang mở (Popup tranh / Hội thoại NPC / Settings...) -> ẩn tâm
+        // Có UI đang mở (Popup tranh / Hội thoại NPC / Settings / Minigame / Menu Cửa...) -> ẩn tâm
         if (IsAnyUIOpen() || forceHidden || !enabledFlag)
         {
             SetCanvasVisible(false);
@@ -134,6 +137,9 @@ public class CrosshairReticle : MonoBehaviour
     {
         if (PaintingUIManager.Instance != null && PaintingUIManager.Instance.IsPopupOpen) return true;
         if (DialogueUIManager.Instance != null && DialogueUIManager.Instance.IsSpeaking) return true;
+        if (MinigameTrigger.IsAnyOpen) return true;
+        if (DoorMenuTrigger.IsAnyOpen) return true;
+        if (ExitToExteriorUI.IsAnyOpen) return true;
         return false;
     }
 

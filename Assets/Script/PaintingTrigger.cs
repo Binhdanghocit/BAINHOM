@@ -1,4 +1,5 @@
 using UnityEngine;
+using UnityEngine.EventSystems;
 
 [RequireComponent(typeof(InteractableOutline))]
 public class PaintingTrigger : MonoBehaviour
@@ -6,6 +7,7 @@ public class PaintingTrigger : MonoBehaviour
     private PaintingInfo paintingInfo; // Khai báo để lấy dữ liệu tranh
     private bool isPlayerNearby = false;
     private InteractableOutline outline;
+    private int lastToggleFrame = -1;
 
     private void Start()
     {
@@ -36,6 +38,7 @@ public class PaintingTrigger : MonoBehaviour
         // với các trigger khác (hội thoại NPC...) đang xử lý cùng frame.
         if (PaintingUIManager.Instance != null && PaintingUIManager.Instance.IsPopupOpen)
         {
+            lastToggleFrame = Time.frameCount;
             PaintingUIManager.Instance.ClosePopup();
             return;
         }
@@ -48,6 +51,9 @@ public class PaintingTrigger : MonoBehaviour
     private static bool IsOtherUIOpen()
     {
         if (DialogueUIManager.Instance != null && DialogueUIManager.Instance.IsSpeaking) return true;
+        if (MinigameTrigger.IsAnyOpen) return true;
+        if (DoorMenuTrigger.IsAnyOpen) return true;
+        if (ExitToExteriorUI.IsAnyOpen) return true;
         return false;
     }
 
@@ -68,7 +74,7 @@ public class PaintingTrigger : MonoBehaviour
             if (outline != null) outline.SetProximity(false);
 
             // Tự động đóng Popup qua Manager khi đi xa
-            if (PaintingUIManager.Instance != null)
+            if (PaintingUIManager.Instance != null && PaintingUIManager.Instance.IsPopupOpen)
             {
                 PaintingUIManager.Instance.ClosePopup();
             }
@@ -77,6 +83,9 @@ public class PaintingTrigger : MonoBehaviour
 
     private void OnMouseDown()
     {
+        if (EventSystem.current != null && EventSystem.current.IsPointerOverGameObject()) return;
+        if (IsOtherUIOpen()) return;
+
         // Chỉ hoạt động khi người chơi ĐANG ĐỨNG GẦN và có đủ dữ liệu
         if (isPlayerNearby && paintingInfo != null)
         {
@@ -84,8 +93,12 @@ public class PaintingTrigger : MonoBehaviour
         }
     }
 
-    private void ToggleInteract()
+    public void ToggleInteract()
     {
+        // Chống double-toggle trong cùng 1 frame (do OnMouseDown + PlayerInteraction cùng bắt click)
+        if (lastToggleFrame == Time.frameCount) return;
+        lastToggleFrame = Time.frameCount;
+
         if (PaintingUIManager.Instance == null) return;
 
         // Popup đang mở -> bấm E / click / trigger lần nữa là thoát

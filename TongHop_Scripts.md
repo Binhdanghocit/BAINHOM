@@ -1,36 +1,42 @@
 # TONG HOP SCRIPTS - BAINHOM
 
-Tong 25 scripts (24 trong Assets/Script + 1 Editor). Trien lam tranh Dong Ho - 1 build chay PC / Mobile / VR.
+Tong 30 scripts (29 trong Assets/Script + 1 Editor). Trien lam tranh Dong Ho - 1 build chay PC / Mobile / VR.
+Xem chi tiet cach setup va ghi chu cap nhat tai file `HUONG_DAN_SETUP.md`.
 
 ## I. BANG CHUC NANG NHANH
 
 | # | Script | Chuc nang |
 |---|--------|-----------|
-| 1 | AudioManager.cs | Singleton nhac nen BGM + SFX toan game, DontDestroyOnLoad. Ham: PlaySFX(), ChangeBGM(), SetMaster/BGM/SFXVolume(). |
-| 2 | CrosshairReticle.cs | Tam ngam dau + bang TextMeshPro, raycast giua man hinh de highlight. Ham: SetCrosshairEnabled(), SetForceHidden(). An khi mo UI/VR. |
-| 3 | DialogueUIManager.cs | Singleton UI hoi thoai NPC (panel + ten + noi dung + prompt Nhan E). Ham: StartDialogue(), AdvanceLine(), EndDialogue(), RequestPrompt(). |
+| 1 | AudioManager.cs | Singleton nhac nen BGM + SFX + Voiceover thuyet minh toan game, DontDestroyOnLoad. Ham: PlaySFX(), PlayVoiceover(), StopVoiceover(), ChangeBGM(), SetMaster/BGM/SFXVolume(). |
+| 2 | CrosshairReticle.cs | Tam ngam dau + bang TextMeshPro, raycast giua man hinh de highlight. Ham: SetCrosshairEnabled(), SetForceHidden(). An khi mo UI/VR, khong chan raycast chuot. |
+| 3 | DialogueUIManager.cs | Singleton UI hoi thoai NPC (panel + ten + noi dung + prompt Nhan E / Trigger VR / Tap). Ham: StartDialogue(), AdvanceLine(), EndDialogue(), RequestPrompt(). |
 | 4 | FPSDisplay.cs | Do va hien FPS len TextMeshPro. Doi mau xanh>=50 / vang>=30 / do. Khong co ham public. |
-| 5 | HandTriggerInput.cs | Static doc nut trigger 2 tay VR, true dung 1 frame (cache frameCount). Ham: WasPressedThisFrame(). Thay phim E tren VR. |
+| 5 | HandTriggerInput.cs | Static doc nut trigger & menu 2 tay VR, true dung 1 frame (cache frameCount). Ham: WasPressedThisFrame(), WasMenuButtonPressedThisFrame(). |
 | 6 | InfoPodiumTrigger.cs | Bat/tat infoDisplay khi player vao/ra trigger. Dung cho buc thong tin tinh. |
 | 7 | InteractableOutline.cs | Vien vang LineRenderer + prompt khi toi gan (proximity) hoac tam ngam chi vao (aimed). Ham: SetProximity(), SetAimed(). |
 | 8 | MainMenuController.cs | Menu don gian cu: PlayGame() load scene, QuitGame() thoat. Da bi MainMenuManager thay the. |
-| 9 | MainMenuManager.cs | Menu chinh: load async + man hinh loading (slider + %), PlayGameVR() qua XRBoot. Ham: PlayGame(), PlayGameVR(), QuitGame(). |
-| 10 | MobileControlsOverlay.cs | UI cam ung: joystick trai + vung vuot phai + nut TUONG TAC. Ham: FindOrCreate(), ConsumeLookDelta(), ConsumeInteractionPressed(). |
-| 11 | NPCInteractable.cs | Luu npcName + dialogueLines, mo hoi thoai khi dung gan + bam E/trigger VR. Chong kich hoat kep voi popup tranh. |
-| 12 | PaintingInfo.cs | Container du lieu tranh: paintingTitle, paintingDescription, paintingSprite. Khong co ham. |
+| 9 | MainMenuManager.cs | Menu chinh: load async + man hinh loading (slider + %, 1920x1080), PlayGameVR() qua XRBoot. Ham: PlayGame(), PlayGameVR(), QuitGame(). |
+| 10 | MobileControlsOverlay.cs | UI cam ung: joystick trai + vung vuot phai + nut NHAY + nhum 2 ngon zoom. Ham: FindOrCreate(), SetGameplayInputEnabled(). |
+| 11 | NPCInteractable.cs | Luu npcName + dialogueLines, mo hoi thoai khi dung gan + bam E/trigger VR/tap. Ham: TriggerDialogue(). Chong kich hoat kep. |
+| 12 | PaintingInfo.cs | Container du lieu tranh: paintingTitle, paintingDescription, paintingSprite, voiceNarration (AudioClip thuyet minh). |
 | 13 | PaintingNamePlate.cs | Tu dien ten bang tranh tu PaintingInfo cha. Ham: UpdatePlateText(). Chay ca Edit mode. |
 | 14 | PaintingTrigger.cs | Dung gan + E/click/trigger VR thi mo popup tranh. Tu dong khi di xa. Ham: ToggleInteract(). |
-| 15 | PaintingUIManager.cs | Singleton popup tranh (panel + anh + tieu de + mo ta + click-blocker). Ham: ShowPaintingInfo(), ClosePopup(). Co IsPopupOpen. |
+| 15 | PaintingUIManager.cs | Singleton popup tranh (panel + anh preserveAspect + tieu de + mo ta + click-blocker + phat/ngat voiceover). Ham: ShowPaintingInfo(), ClosePopup(). |
 | 16 | PlatformHelper.cs | Nguon su that nen tang: IsTouchDevice(), IsQuestDevice(), IsXRDisplayRunning(), SetCursorLocked(). 1 build chay PC/mobile/VR. |
 | 17 | PlayerController.cs | Di chuyen CharacterController + Animator (di/chay/nhay/trong luc + tieng buoc chan). Ho tro FPS + TPS + cam ung. |
-| 18 | PlayerDetector.cs | Nhan dien player thong nhat: IsPlayer() qua Tag + rig dang ky + fallback CharacterController. Ham: RegisterRoot(). |
-| 19 | PlayerInteraction.cs | Click/tap raycast mo tranh (uu tien 1) va NPC (uu tien 2). Ham: Interact(), TryInteract(). |
-| 20 | SettingsManager.cs | Menu Settings: panel ESC, slider Master/BGM/SFX, dropdown BGM + FPS, toggle crosshair. Tu bo cap FPS khi VR. |
+| 18 | PlayerDetector.cs | Nhan dien player thong nhat: IsPlayer() qua Tag + rig dang ky + fallback CharacterController. Ham: RegisterRoot() (tu don null khi doi scene). |
+| 19 | PlayerInteraction.cs | Click/tap raycast mo Tranh (uu tien 1), NPC (uu tien 2), Cua (uu tien 3), Ban Ve Minigame (uu tien 4). Ham: Interact(), TryInteract(). |
+| 20 | SettingsManager.cs | Menu Settings: panel ESC/Menu VR, slider Master/BGM/SFX, dropdown BGM + FPS, nut RA NGOAI (ExteriorScene) & THOAT GAME. |
 | 21 | ThirdPersonCamera.cs | Camera TPS/FPS: xoay chuot + zoom scroll (0=FPS), tu an mesh o FPS. Ham: AddLook() cho mobile. Co IsFirstPerson. |
 | 22 | ViewModeController.cs | Chuyen rig Desktop <-> VR (poll XR 0.5s), tu tao MobileControls, gan Tag Player. Phim C doi Goc 1/3. |
 | 23 | VRUIInputBridge.cs | Bien ray + trigger VR thanh PointerEvent cho UI Screen Space. Chieu ray len mat phang 2m truoc camera. |
 | 24 | XRBoot.cs | Tu khoi XR luc chay: Quest tu vao VR, PC/mobile phang, nut Choi VR goi StartXRRoutine(). Bootstrap DontDestroyOnLoad. |
 | 25 | FixVnFont.cs | Tool Editor: bake glyph tieng Viet vao LiberationSans SDF (Tools menu). Chuyen Static->Dynamic, TryAddCharacters(). |
+| 26 | DoorMenuTrigger.cs | **(MOI)** Tuong tac canh cua sanh ngoai: mo Menu 3 nut (GoToGallery, OpenMinigame, ExitGame, CloseMinigame). Ho tro PC/Mobile/VR. |
+| 27 | MinigameTrigger.cs | **(MOI)** Tuong tac Ban Ve trong trien lam: mo/dong Minigame (OpenMinigame, CloseMinigame, ToggleMinigame), khoa di chuyen player. |
+| 28 | ColorFillMinigame.cs | **(MOI)** Minigame to mau tu chon: chon mau (SelectColor), to tung manh (FillColor), to lai (ResetPainting), kiem tra hoan thanh. |
+| 29 | WoodblockMinigame.cs | **(MOI)** Minigame in tranh moc ban theo tung lop mau: PrintLayer(int), ResetGame(). |
+| 30 | ExitToExteriorUI.cs | **(MOI)** Dialog xac nhan thoat ra sanh ngoai (GoBackOutside, StayHere, ToggleDialog) kem hieu ung FadeOut va nut Menu tren Mobile. |
 
 ---
 

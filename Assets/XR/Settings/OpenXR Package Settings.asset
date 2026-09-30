@@ -138,7 +138,7 @@ MonoBehaviour:
   m_symmetricProjection: 0
   m_optimizeMultiviewRenderRegions: 0
   m_multiviewRenderRegionsOptimizationMode: 0
-  m_hasMigratedMultiviewRenderRegionSetting: 0
+  m_hasMigratedMultiviewRenderRegionSetting: 1
   m_foveatedRenderingApi: 1
   m_useOpenXRPredictedTime: 1
 --- !u!114 &-7793299911433085798
@@ -1556,7 +1556,7 @@ MonoBehaviour:
   lateLatchingDebug: 0
   optimizeMultiviewRenderRegions: 0
   m_multiviewRenderRegionsOptimizationMode: 0
-  m_hasMigratedMultiviewRenderRegions: 0
+  m_hasMigratedMultiviewRenderRegions: 1
   spacewarpMotionVectorTextureFormat: 0
 --- !u!114 &4042485600981436957
 MonoBehaviour:
@@ -1697,45 +1697,45 @@ MonoBehaviour:
   m_Name: Standalone
   m_EditorClassIdentifier: Unity.XR.OpenXR::UnityEngine.XR.OpenXR.OpenXRSettings
   features:
-  - {fileID: 5551876288440847509}
-  - {fileID: -6108794853009257366}
-  - {fileID: -2827385901290965021}
-  - {fileID: 1001802927238705908}
-  - {fileID: 8342138034361840951}
-  - {fileID: 1756116871672122019}
-  - {fileID: 8932078200785020414}
-  - {fileID: -750183748149563085}
-  - {fileID: 3384482548173170968}
-  - {fileID: -1428968825657990658}
-  - {fileID: 8911792008610940749}
-  - {fileID: 1785683657371798710}
-  - {fileID: -8523180224306007699}
-  - {fileID: 9084458189049457025}
-  - {fileID: 6322512189696652527}
+  - {fileID: -6738869941573775827}
+  - {fileID: -4471718703107376946}
+  - {fileID: 8310826070192829053}
+  - {fileID: 8998730965140469915}
   - {fileID: 3419150316595554177}
+  - {fileID: 7917068982793953607}
+  - {fileID: -2827385901290965021}
+  - {fileID: 1756116871672122019}
+  - {fileID: 1785683657371798710}
+  - {fileID: 8911792008610940749}
+  - {fileID: -750183748149563085}
+  - {fileID: 9084458189049457025}
+  - {fileID: 1001802927238705908}
+  - {fileID: -2036617922336812250}
+  - {fileID: -1428968825657990658}
+  - {fileID: -5527354104092216273}
+  - {fileID: 2146112198254658591}
+  - {fileID: 8932078200785020414}
+  - {fileID: 8342138034361840951}
+  - {fileID: 6582918018300040532}
+  - {fileID: 413099779166982784}
+  - {fileID: -6438690020358152392}
+  - {fileID: -6465714926599433998}
+  - {fileID: -2578546002070234718}
+  - {fileID: -847357541764685735}
+  - {fileID: -2014643944660491378}
+  - {fileID: -5538848102292106267}
+  - {fileID: 876791663156545729}
+  - {fileID: 8361464088864809040}
+  - {fileID: -3712625535693795157}
+  - {fileID: 4042485600981436957}
+  - {fileID: 6322512189696652527}
+  - {fileID: -6108794853009257366}
   - {fileID: -7443281452476251058}
   - {fileID: -2572320499191694899}
-  - {fileID: 7917068982793953607}
-  - {fileID: -2036617922336812250}
-  - {fileID: -5527354104092216273}
-  - {fileID: 4042485600981436957}
-  - {fileID: -3712625535693795157}
-  - {fileID: 6582918018300040532}
-  - {fileID: -6438690020358152392}
-  - {fileID: -847357541764685735}
-  - {fileID: -2578546002070234718}
-  - {fileID: -5538848102292106267}
-  - {fileID: -6465714926599433998}
-  - {fileID: 413099779166982784}
-  - {fileID: 8361464088864809040}
-  - {fileID: -2014643944660491378}
-  - {fileID: 876791663156545729}
-  - {fileID: -6738869941573775827}
-  - {fileID: 2146112198254658591}
+  - {fileID: 5551876288440847509}
+  - {fileID: 3384482548173170968}
+  - {fileID: -8523180224306007699}
   - {fileID: 4233120680698005338}
-  - {fileID: -4471718703107376946}
-  - {fileID: 8998730965140469915}
-  - {fileID: 8310826070192829053}
   customLoaderName: 
   m_renderMode: 1
   m_latencyOptimization: 0
@@ -1748,7 +1748,7 @@ MonoBehaviour:
   m_symmetricProjection: 0
   m_optimizeMultiviewRenderRegions: 0
   m_multiviewRenderRegionsOptimizationMode: 0
-  m_hasMigratedMultiviewRenderRegionSetting: 0
+  m_hasMigratedMultiviewRenderRegionSetting: 1
   m_foveatedRenderingApi: 1
   m_useOpenXRPredictedTime: 1
 --- !u!114 &5074345434146730440
@@ -1873,7 +1873,7 @@ MonoBehaviour:
   m_symmetricProjection: 0
   m_optimizeMultiviewRenderRegions: 0
   m_multiviewRenderRegionsOptimizationMode: 0
-  m_hasMigratedMultiviewRenderRegionSetting: 0
+  m_hasMigratedMultiviewRenderRegionSetting: 1
   m_foveatedRenderingApi: 1
   m_useOpenXRPredictedTime: 1
 --- !u!114 &5460917245067528727

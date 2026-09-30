@@ -32,7 +32,7 @@ public class SettingsManager : MonoBehaviour
 
     [Header("--- Điều hướng (Main Menu / Thoát) ---")]
     [Tooltip("Tên scene Main Menu để quay về từ Gallery.")]
-    public string mainMenuSceneName = "MainMenu";
+    public string mainMenuSceneName = "ExteriorScene";
     [Tooltip("Nút 'Về Main Menu' trong panel Settings (PC/Mobile bấm chuột/chạm, VR bấm bằng ray). Để trống sẽ tự tìm nút tên chứa MainMenu/Home/VeMenu.")]
     public Button mainMenuButton;
     [Tooltip("Nút 'Thoát game' trong panel Settings. Để trống sẽ tự tìm nút tên chứa Quit/Exit/Thoat.")]
@@ -209,7 +209,7 @@ public class SettingsManager : MonoBehaviour
                 crosshair.SetForceHidden(false);
             }
 
-            if (SceneManager.GetActiveScene().name == "MainMenu")
+            if (SceneManager.GetActiveScene().name == mainMenuSceneName)
             {
                 Cursor.lockState = CursorLockMode.None;
                 Cursor.visible = true;

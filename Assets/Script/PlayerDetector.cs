@@ -12,6 +12,12 @@ public static class PlayerDetector
     // Đăng ký trước mỗi scene load / khi biết rig. Gọi lại khi có rig mới.
     public static void RegisterRoot(Transform root)
     {
+        // Dọn dẹp các reference cũ đã bị Destroy khi chuyển Scene
+        for (int i = roots.Count - 1; i >= 0; i--)
+        {
+            if (roots[i] == null) roots.RemoveAt(i);
+        }
+
         if (root == null) return;
         for (int i = 0; i < roots.Count; i++)
         {

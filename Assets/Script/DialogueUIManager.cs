@@ -38,7 +38,10 @@ public class DialogueUIManager : MonoBehaviour
         canvasGo.transform.SetParent(transform, false);
         var canvas = canvasGo.AddComponent<Canvas>();
         canvas.renderMode = RenderMode.ScreenSpaceOverlay;
-        canvasGo.AddComponent<CanvasScaler>().uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
+        var scaler = canvasGo.AddComponent<CanvasScaler>();
+        scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
+        scaler.referenceResolution = new Vector2(1920, 1080);
+        scaler.matchWidthOrHeight = 0.5f;
         canvasGo.AddComponent<GraphicRaycaster>();
 
         // Panel hội thoại (phía dưới màn hình)
@@ -85,9 +88,11 @@ public class DialogueUIManager : MonoBehaviour
         prompt.transform.SetParent(canvasGo.transform, false);
         var promptText = prompt.AddComponent<TextMeshProUGUI>();
         // Prompt theo nền tảng: điện thoại tap, PC bấm E/click
-        promptText.text = PlatformHelper.IsTouchDevice()
-            ? "Chạm vào nhân vật/tranh để tương tác"
-            : "Nhấn E / Click để tương tác";
+        promptText.text = PlatformHelper.IsXRDisplayRunning()
+            ? "Bấm Trigger tay cầm để tương tác"
+            : (PlatformHelper.IsTouchDevice()
+                ? "Chạm vào nhân vật/tranh để tương tác"
+                : "Nhấn E / Click để tương tác");
         promptText.fontSize = 30;
         promptText.fontStyle = FontStyles.Bold;
         promptText.alignment = TextAlignmentOptions.Center;

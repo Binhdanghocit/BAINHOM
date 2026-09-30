@@ -24,6 +24,10 @@ public class PaintingUIManager : MonoBehaviour
         if (Instance == null)
         {
             Instance = this;
+            if (GetComponent<VRUIInputBridge>() == null)
+            {
+                gameObject.AddComponent<VRUIInputBridge>();
+            }
         }
         else
         {
@@ -45,11 +49,15 @@ public class PaintingUIManager : MonoBehaviour
     // Hàm gọi khi bấm vào tranh
     public void ShowPaintingInfo(PaintingInfo info)
     {
-        if (info == null) return;
+        if (info == null || popupPanel == null) return;
 
-        titleText.text = info.paintingTitle;
-        descriptionText.text = info.paintingDescription;
-        displayImage.sprite = info.paintingSprite;
+        if (titleText != null) titleText.text = info.paintingTitle;
+        if (descriptionText != null) descriptionText.text = info.paintingDescription;
+        if (displayImage != null)
+        {
+            displayImage.sprite = info.paintingSprite;
+            displayImage.preserveAspect = true;
+        }
 
         popupPanel.SetActive(true); // Hiện bảng UI
         IsPopupOpen = true;
@@ -59,9 +67,18 @@ public class PaintingUIManager : MonoBehaviour
             clickBlocker.gameObject.SetActive(true);
         }
 
-        // Mở khóa chuột để click nút X hoặc thao tác UI
-        Cursor.lockState = CursorLockMode.None;
-        Cursor.visible = true;
+        // Phát âm thanh thuyết minh của bức tranh nếu có
+        if (AudioManager.Instance != null && info.voiceNarration != null)
+        {
+            AudioManager.Instance.PlayVoiceover(info.voiceNarration);
+        }
+
+        // Tắt tạm joystick ảo trên điện thoại để người chơi đọc/cuộn thông tin tranh không bị trôi nhân vật
+        MobileControlsOverlay controls = FindAnyObjectByType<MobileControlsOverlay>();
+        if (controls != null) controls.SetGameplayInputEnabled(false);
+
+        // Mở khóa chuột phù hợp theo nền tảng (PC/VR/Mobile)
+        PlatformHelper.SetCursorLocked(false);
     }
 
     // Hàm gọi khi bấm nút X để đóng
@@ -76,6 +93,16 @@ public class PaintingUIManager : MonoBehaviour
         {
             clickBlocker.gameObject.SetActive(false);
         }
+
+        // Ngắt âm thanh thuyết minh khi đóng bảng
+        if (AudioManager.Instance != null)
+        {
+            AudioManager.Instance.StopVoiceover();
+        }
+
+        // Bật lại joystick ảo trên điện thoại
+        MobileControlsOverlay controls = FindAnyObjectByType<MobileControlsOverlay>();
+        if (controls != null) controls.SetGameplayInputEnabled(true);
 
         // Khóa lại con trỏ chuột để điều khiển nhân vật tiếp (PC only)
         PlatformHelper.SetCursorLocked(true);

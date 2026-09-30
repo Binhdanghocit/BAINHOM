@@ -7,6 +7,7 @@ public class AudioManager : MonoBehaviour
     [Header("--- Audio Sources ---")]
     public AudioSource bgmSource;
     public AudioSource sfxSource;
+    public AudioSource voiceSource;
 
     [Header("--- List BGM (Nhạc nền) ---")]
     public AudioClip[] bgmClips;
@@ -35,6 +36,7 @@ public class AudioManager : MonoBehaviour
             AudioSource[] sources = GetComponents<AudioSource>();
             if (sources.Length >= 1 && bgmSource == null) bgmSource = sources[0];
             if (sources.Length >= 2 && sfxSource == null) sfxSource = sources[1];
+            if (sources.Length >= 3 && voiceSource == null) voiceSource = sources[2];
         }
         else
         {
@@ -59,6 +61,31 @@ public class AudioManager : MonoBehaviour
             sfxSource.PlayOneShot(clip, sfxVolume * masterVolume);
         }
     }
+
+    public void PlayVoiceover(AudioClip clip)
+    {
+        if (voiceSource == null)
+        {
+            voiceSource = gameObject.AddComponent<AudioSource>();
+            voiceSource.playOnAwake = false;
+        }
+        voiceSource.Stop();
+        if (clip != null)
+        {
+            voiceSource.clip = clip;
+            voiceSource.volume = masterVolume;
+            voiceSource.Play();
+        }
+    }
+
+    public void StopVoiceover()
+    {
+        if (voiceSource != null && voiceSource.isPlaying)
+        {
+            voiceSource.Stop();
+        }
+    }
+
 
     public void ChangeBGM(int index)
     {
@@ -98,6 +125,10 @@ public class AudioManager : MonoBehaviour
         if (bgmSource != null)
         {
             bgmSource.volume = bgmVolume * masterVolume;
+        }
+        if (voiceSource != null)
+        {
+            voiceSource.volume = masterVolume;
         }
     }
 }

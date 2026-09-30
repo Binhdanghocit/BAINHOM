@@ -12,6 +12,7 @@ public class NPCInteractable : MonoBehaviour
 
     private bool isPlayerNearby = false;
     private InteractableOutline outline;
+    private int lastInteractFrame = -1;
 
     private void Start()
     {
@@ -25,10 +26,15 @@ public class NPCInteractable : MonoBehaviour
         bool pressed = Input.GetKeyDown(KeyCode.E) || HandTriggerInput.WasPressedThisFrame();
         if (!pressed) return;
 
-        // FIX double-activation (bug trigger VR): 1 nút bấm không được kích hoạt
-        // 2 hệ thống cùng lúc (tranh + NPC). Nếu một UI khác đang mở -> bỏ qua,
-        // UI đó tự xử lý nút của chính nó.
-        if (IsOtherUIOpen()) return;
+        TriggerDialogue();
+    }
+
+    public void TriggerDialogue()
+    {
+        if (lastInteractFrame == Time.frameCount) return;
+        lastInteractFrame = Time.frameCount;
+
+        if (DialogueUIManager.Instance == null || IsOtherUIOpen()) return;
 
         if (DialogueUIManager.Instance.IsSpeaking)
         {
@@ -43,6 +49,9 @@ public class NPCInteractable : MonoBehaviour
     private static bool IsOtherUIOpen()
     {
         if (PaintingUIManager.Instance != null && PaintingUIManager.Instance.IsPopupOpen) return true;
+        if (MinigameTrigger.IsAnyOpen) return true;
+        if (DoorMenuTrigger.IsAnyOpen) return true;
+        if (ExitToExteriorUI.IsAnyOpen) return true;
         return false;
     }
 
@@ -63,7 +72,7 @@ public class NPCInteractable : MonoBehaviour
             if (outline != null) outline.SetProximity(false);
 
             // Đi xa là đóng hội thoại đang mở
-            if (DialogueUIManager.Instance != null)
+            if (DialogueUIManager.Instance != null && DialogueUIManager.Instance.IsSpeaking)
             {
                 DialogueUIManager.Instance.EndDialogue();
             }

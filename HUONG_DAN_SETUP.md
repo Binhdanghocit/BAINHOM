@@ -1,6 +1,6 @@
-# 📦 Hướng Dẫn Setup & Vận Hành — Triển Lãm Tranh Đông Hồ (2 Scene)
+# 📦 Hướng Dẫn Setup & Vận Hành — Triển Lãm Tranh Đông Hồ (Tương Tác Qua Cửa)
 
-Tài liệu này hướng dẫn chi tiết quy trình hoàn thiện dự án theo mô hình **2 Scene chuẩn (MainMenu ➔ Triển Lãm)**.
+Tài liệu này hướng dẫn chi tiết quy trình hoàn thiện dự án theo mô hình **Tương tác Minigame & Thoát qua Cánh Cửa phòng triển lãm** (không cần tạo thêm Bàn Vẽ, không làm chật phòng tranh).
 
 ---
 
@@ -15,69 +15,65 @@ Tài liệu này hướng dẫn chi tiết quy trình hoàn thiện dự án the
     │  Bấm "Bắt đầu" ➔ Thanh tiến trình Loading 100%
     ▼
 [SampleScene] ← Scene 1 (SampleScene.unity — Phòng Triển Lãm)
-    ├── Xem tranh   ➔ Bấm E/Click/Tap/Trigger ➔ Hiện ảnh phóng to + Phát thuyết minh giọng đọc
-    ├── Nói chuyện  ➔ Bấm E/Click/Tap/Trigger ➔ NPC Hướng dẫn viên mở khung thoại
-    ├── Bàn Vẽ      ➔ Lại gần Bàn Workshop bấm E ➔ Mở Minigame Tô Màu (ColorFillMinigame)
-    └── ESC / Nút SETTING / Nút Menu VR ➔ Mở bảng Settings
-          ├── [VỀ MENU]    ➔ Quay trở lại Scene MainMenu
-          └── [THOÁT GAME] ➔ Thoát khỏi ứng dụng
+    ├── Xem tranh   ➔ Bấm E / Click / Tap / Trigger ➔ Hiện ảnh phóng to + Phát thuyết minh giọng đọc
+    ├── Nói chuyện  ➔ Bấm E / Click / Tap / Trigger ➔ NPC Hướng dẫn viên mở khung thoại
+    ├── Cánh Cửa    ➔ Lại gần cửa bấm E / Click / Tap / Trigger ➔ Mở Menu Cửa 3 nút:
+    │     ├── [🎨 CHƠI MINIGAME]    ➔ Mở Minigame Tô Màu (Nhân vật đứng yên, chuột mở ra)
+    │     │       ├── [🏛️ QUAY LẠI] ➔ Đóng minigame, đứng trước cửa xem tranh tiếp
+    │     │       └── [❌ THOÁT]    ➔ Thoát game
+    │     ├── [🚶 Ở LẠI THAM QUAN]  ➔ Đóng menu cửa, quay lại đi dạo tiếp
+    │     └── [❌ VỀ MENU / THOÁT]  ➔ Quay lại Scene MainMenu hoặc thoát ứng dụng
+    └── ESC / Nút SETTING / Nút Menu VR ➔ Mở bảng Settings (Âm lượng, BGM, FPS, Thoát)
 ```
 
 ---
 
 ## 🔧 2. Các Bước Kéo Thả Trong Unity Editor
 
-### Bước 1: Kiểm Tra Build Settings (Đảm bảo thứ tự Scene)
-1. Vào menu **File > Build Settings...**
-2. Đảm bảo danh sách **Scenes In Build** đúng thứ tự:
-   - **Index 0:** `Assets/Scenes/MainMenu.unity`
-   - **Index 1:** `Assets/Scenes/SampleScene.unity`
-
----
-
-### Bước 2: Cấu Hình Scene `MainMenu`
-1. Mở Scene `Assets/Scenes/MainMenu.unity`.
-2. Chọn GameObject chứa script **`MainMenuManager`**.
-3. Trong Inspector:
-   - Ô **`Gallery Scene Name`** điền là: `SampleScene` (code cũng đã có fallback tự tìm nếu quên đổi).
-   - Nút **Play (Bắt đầu)**: Đảm bảo OnClick gọi `MainMenuManager.PlayGame`.
-   - Nút **Chơi VR**: OnClick gọi `MainMenuManager.PlayGameVR`.
-   - Nút **Thoát**: OnClick gọi `MainMenuManager.QuitGame`.
-
----
-
-### Bước 3: Cấu Hình Thuyết Minh Tranh trong `SampleScene`
+### Bước 1: Gắn Tính Năng Cho Cánh Cửa Trong `SampleScene`
 1. Mở Scene `Assets/Scenes/SampleScene.unity`.
-2. Bấm vào từng **GameObject bức tranh** trong Hierarchy (nơi gắn `PaintingInfo`).
-3. Trong Inspector > component **Painting Info**:
-   - Kéo file âm thanh `.mp3` / `.wav` thuyết minh vào ô **`Voice Narration`**.
-4. *(Tùy chọn)* Trên GameObject **`AudioManager`**, thêm 1 component `AudioSource` thứ 3 kéo vào ô **`Voice Source`** (nếu để trống, code sẽ tự tạo khi phát).
+2. Chọn **GameObject Cánh Cửa** (cửa ra vào hoặc cổng vòm trong phòng triển lãm):
+   - Thêm component **`Box Collider`** (nhớ **tick chọn `Is Trigger`**, chỉnh vùng va chạm bao quanh trước cửa).
+   - Thêm component **`InteractableOutline`** (để lại gần cửa tự phát sáng viền vàng).
+   - Thêm component **`DoorMenuTrigger`**.
 
 ---
 
-### Bước 4: Đặt Bàn Vẽ & Giao Diện Minigame Tô Màu
-1. Trong `SampleScene`, chọn hoặc tạo 1 cái bàn (`BanVe`) đặt ở góc phòng triển lãm:
-   - Add Component: **Box Collider** (nhớ **tick `Is Trigger`**, chỉnh vùng va chạm rộng quanh bàn).
-   - Add Component: **`InteractableOutline`** (để lại gần bàn vẽ tự sáng viền vàng).
-   - Add Component: **`MinigameTrigger`**.
-2. Tạo Panel UI Minigame (`Panel_Minigame`, mặc định tắt `SetActive = false`):
-   - Kéo Panel này vào ô **`Minigame UI`** của `MinigameTrigger`.
-3. Trong `Panel_Minigame`, tạo GameObject gắn script **`ColorFillMinigame`**:
-   - Các nút **Bảng màu**: `OnClick` gọi `ColorFillMinigame.SelectColor` (kéo `Image` của chính nút màu đó vào).
-   - Các nút **Mảnh tranh trắng**: `OnClick` gọi `ColorFillMinigame.FillColor` (kéo `Image` của chính mảnh đó vào), đồng thời kéo danh sách các mảnh vào ô **`Paintable Parts`**.
-   - Nút **Tô lại**: `OnClick` gọi `ColorFillMinigame.ResetPainting`.
-   - Nút **[X] Đóng**: `OnClick` gọi `MinigameTrigger.CloseMinigame`.
+### Bước 2: Tạo Giao Diện Menu Cánh Cửa (`Panel_DoorMenu`)
+1. Trong Canvas UI, tạo 1 Panel đặt tên **`Panel_DoorMenu`** (mặc định tắt `SetActive = false`).
+2. Tạo **3 Button** bên trong Panel này:
+   - **Nút 1: "🎨 Chơi Minigame Tô Màu"**
+     - `OnClick (+)` ➔ Kéo **Cánh Cửa** vào ➔ Chọn hàm: **`DoorMenuTrigger.OpenMinigame`**
+   - **Nút 2: "🚶 Ở lại tham quan"**
+     - `OnClick (+)` ➔ Kéo **Cánh Cửa** vào ➔ Chọn hàm: **`DoorMenuTrigger.StayInGallery`**
+   - **Nút 3: "❌ Về Menu Chính"** (hoặc Thoát Game)
+     - `OnClick (+)` ➔ Kéo **Cánh Cửa** vào ➔ Chọn hàm: **`DoorMenuTrigger.GoToMainMenu`** (hoặc `DoorMenuTrigger.ExitGame`)
+3. Chọn lại **Cánh Cửa**, kéo `Panel_DoorMenu` vừa tạo vào ô **`Door Menu UI`** của `DoorMenuTrigger`.
 
 ---
 
-### Bước 5: Kiểm Tra Bảng Settings trong `SampleScene`
-1. Chọn GameObject chứa **`SettingsManager`**.
-2. Kiểm tra ô **`Main Menu Scene Name`** = `MainMenu`.
-3. Kiểm tra nút trong Panel Settings hiển thị chữ **"VỀ MENU"** (Click sẽ gọi `SettingsManager.GoToMainMenu`).
-4. Nút **"THOÁT GAME"** gọi `SettingsManager.QuitGame`.
+### Bước 3: Tạo Giao Diện Minigame Tô Màu (`Panel_Minigame`)
+1. Tạo 1 Panel đặt tên **`Panel_Minigame`** (mặc định tắt `SetActive = false`).
+2. Chọn **Cánh Cửa**, kéo `Panel_Minigame` vào ô **`Minigame UI`** của `DoorMenuTrigger`.
+3. Thiết kế bên trong `Panel_Minigame`:
+   - Các nút **Bảng màu**: Nút màu Đỏ, Xanh, Vàng...
+   - Các nút **Mảnh tranh trắng**: Thân, cánh, đuôi... (cắt PNG nền trong suốt).
+   - Nút **"🏛️ Quay lại Triển Lãm"** (hoặc nút [X] ở góc):
+     - `OnClick (+)` ➔ Kéo **Cánh Cửa** vào ➔ Chọn hàm: **`DoorMenuTrigger.CloseMinigame`**
+   - Nút **"Tô lại từ đầu"**:
+     - `OnClick (+)` ➔ Gọi hàm `ColorFillMinigame.ResetPainting`
+4. Tạo 1 Empty GameObject gắn script **`ColorFillMinigame`**:
+   - Nối sự kiện nút màu ➔ `ColorFillMinigame.SelectColor`.
+   - Nối sự kiện mảnh tranh ➔ `ColorFillMinigame.FillColor`, đồng thời kéo danh sách các mảnh vào ô **`Paintable Parts`**.
 
 ---
 
-### Bước 6: Tối Ưu Ánh Sáng (Bake Lighting)
-1. Chọn các đối tượng tĩnh (Tường, Sàn, Cột, Khung tranh) > trên góc phải Inspector tick chọn **Static**.
-2. Vào **Window > Rendering > Lighting** > bấm **Generate Lighting** để Unity nướng ánh sáng (giúp đạt 60-90 FPS mượt mà trên Mobile & VR).
+### Bước 4: Thuyết Minh Tranh
+- Bấm vào từng bức tranh trong triển lãm (component `PaintingInfo`) ➔ Kéo file `.mp3` / `.wav` vào ô **`Voice Narration`**.
+
+---
+
+### Bước 5: Build Settings
+- **File > Build Settings...**
+  - **Index 0:** `Assets/Scenes/MainMenu.unity`
+  - **Index 1:** `Assets/Scenes/SampleScene.unity`

@@ -2,15 +2,28 @@ using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.SceneManagement;
 
+/// <summary>
+/// Gắn vào Cánh Cửa trong phòng triển lãm.
+/// Lại gần bấm E / Click / Trigger VR sẽ mở Menu Cửa:
+/// 1. Chơi Minigame (Mở giao diện tô màu, tạm khóa di chuyển nhân vật)
+/// 2. Ở lại tham quan (Đóng menu, tiếp tục xem tranh)
+/// 3. Về Menu / Thoát Game
+/// </summary>
 [RequireComponent(typeof(InteractableOutline))]
 public class DoorMenuTrigger : MonoBehaviour
 {
     [Header("Giao diện")]
-    public GameObject doorMenuUI; // Kéo bảng UI chứa 3 nút (Vào Triển Lãm, Minigame, Thoát) vào đây
-    public GameObject minigameUI; // Kéo giao diện Minigame vào đây
+    [Tooltip("Bảng Menu 3 nút của Cánh Cửa (Chơi Minigame, Ở lại, Thoát)")]
+    public GameObject doorMenuUI;
+    [Tooltip("Bảng giao diện Minigame Tô Màu")]
+    public GameObject minigameUI;
 
-    [Header("Fallback Scene (nếu không có MainMenuManager)")]
-    public string fallbackGallerySceneName = "ExhibitionScene";
+    [Header("Scene Điều hướng")]
+    public string mainMenuSceneName = "MainMenu";
+
+    [Header("Khóa di chuyển khi chơi Minigame")]
+    [Tooltip("Kéo Player vào đây để khóa di chuyển lúc đang tô màu (để trống sẽ tự tìm)")]
+    public MonoBehaviour playerController;
 
     // Cho phép các hệ thống khác (Crosshair, MobileControls, PlayerInteraction) biết UI cửa đang mở
     public static bool IsAnyOpen { get; private set; }
@@ -21,7 +34,6 @@ public class DoorMenuTrigger : MonoBehaviour
 
     private bool isPlayerNear = false;
     private InteractableOutline outline;
-    private MainMenuManager menuManager; // Trỏ tới script chuyển scene có sẵn
     private int lastToggleFrame = -1;
 
     private void Awake()
@@ -36,7 +48,10 @@ public class DoorMenuTrigger : MonoBehaviour
     private void Start()
     {
         outline = GetComponent<InteractableOutline>();
-        menuManager = FindAnyObjectByType<MainMenuManager>();
+        if (playerController == null)
+        {
+            playerController = FindAnyObjectByType<PlayerController>();
+        }
 
         if (doorMenuUI != null) doorMenuUI.SetActive(false);
         if (minigameUI != null) minigameUI.SetActive(false);
@@ -46,6 +61,7 @@ public class DoorMenuTrigger : MonoBehaviour
     private void OnDisable()
     {
         IsAnyOpen = false;
+        if (playerController != null) playerController.enabled = true;
     }
 
     private void Update()
@@ -55,7 +71,7 @@ public class DoorMenuTrigger : MonoBehaviour
         // Bấm E hoặc trigger VR để tương tác với cánh cửa
         if (Input.GetKeyDown(KeyCode.E) || HandTriggerInput.WasPressedThisFrame())
         {
-            // Nếu đang mở Minigame từ cửa -> bấm E sẽ đóng Minigame thay vì bật đè Menu Cửa
+            // Nếu đang mở Minigame -> bấm E sẽ đóng Minigame và quay lại triển lãm
             if (minigameUI != null && minigameUI.activeSelf)
             {
                 CloseMinigame();
@@ -86,6 +102,7 @@ public class DoorMenuTrigger : MonoBehaviour
             if (doorMenuUI != null) doorMenuUI.SetActive(false);
             if (minigameUI != null) minigameUI.SetActive(false);
             SyncOpenState();
+            if (playerController != null) playerController.enabled = true;
             PlatformHelper.SetCursorLocked(true); // Khóa lại chuột
         }
     }
@@ -104,7 +121,7 @@ public class DoorMenuTrigger : MonoBehaviour
 
     public void ToggleDoorMenu()
     {
-        // Chống double-toggle trong cùng 1 frame (do OnMouseDown + PlayerInteraction cùng bắt click)
+        // Chống double-toggle trong cùng 1 frame
         if (lastToggleFrame == Time.frameCount) return;
         lastToggleFrame = Time.frameCount;
 
@@ -129,75 +146,91 @@ public class DoorMenuTrigger : MonoBehaviour
     }
 
     // ============================================
-    // CÁC HÀM NÀY GẮN VÀO BUTTON TRÊN MENU CÁNH CỬA
+    // CÁC HÀM GẮN VÀO BUTTON TRÊN MENU CÁNH CỬA
     // ============================================
 
-    // 1. Nút "Vào Triển Lãm"
-    public void GoToGallery()
-    {
-        if (doorMenuUI != null) doorMenuUI.SetActive(false);
-        SyncOpenState();
-
-        if (menuManager == null)
-        {
-            menuManager = FindAnyObjectByType<MainMenuManager>();
-        }
-
-        if (menuManager != null)
-        {
-            menuManager.PlayGame(); // Gọi hàm load scene có màn hình Loading của hệ thống cũ
-        }
-        else if (Application.CanStreamedLevelBeLoaded(fallbackGallerySceneName))
-        {
-            SceneManager.LoadScene(fallbackGallerySceneName);
-        }
-        else
-        {
-            Debug.LogError("[DoorMenuTrigger] Chưa có MainMenuManager hoặc tên Scene chưa thêm vào Build Settings!");
-        }
-    }
-
-    // 2. Nút "Chơi Mini Game"
+    // 1. NÚT "CHƠI MINIGAME" (Mở bảng tô màu)
     public void OpenMinigame()
     {
-        if (doorMenuUI != null) doorMenuUI.SetActive(false);
+        lastToggleFrame = Time.frameCount;
+
+        if (doorMenuUI != null) doorMenuUI.SetActive(false); // Ẩn menu cửa
 
         if (minigameUI != null)
         {
-            minigameUI.SetActive(true); // Mở bảng Minigame lên
+            minigameUI.SetActive(true); // Hiện bảng Minigame
             SyncOpenState();
 
-            // Hiện chuột để chơi game tô màu theo đúng nền tảng
+            // Khóa di chuyển nhân vật khi đang tô màu
+            if (playerController != null)
+                playerController.enabled = false;
+
+            // Mở chuột để người chơi chọn màu và tô
             PlatformHelper.SetCursorLocked(false);
         }
     }
 
-    // Nút đóng Minigame (nếu có nút X hoặc quay lại)
+    // 2. NÚT "Ở LẠI THAM QUAN" (Đóng menu cửa, tiếp tục xem tranh)
+    public void StayInGallery()
+    {
+        lastToggleFrame = Time.frameCount;
+
+        if (doorMenuUI != null) doorMenuUI.SetActive(false);
+        SyncOpenState();
+
+        // Mở lại di chuyển & khóa chuột để chơi tiếp
+        if (playerController != null)
+            playerController.enabled = true;
+
+        PlatformHelper.SetCursorLocked(true);
+    }
+
+    // 3. NÚT "QUAY LẠI TRIỂN LÃM" (Gắn vào nút [X] hoặc nút Thoát Minigame)
     public void CloseMinigame()
     {
         lastToggleFrame = Time.frameCount;
+
         if (minigameUI != null)
         {
             minigameUI.SetActive(false);
         }
         SyncOpenState();
+
+        // Mở lại di chuyển nhân vật
+        if (playerController != null)
+            playerController.enabled = true;
+
+        // Khóa lại chuột để tiếp tục đi dạo trong bảo tàng
         PlatformHelper.SetCursorLocked(true);
     }
 
-    // 3. Nút "Thoát Game"
-    public void ExitGame()
+    // 4. NÚT "VỀ MENU CHÍNH"
+    public void GoToMainMenu()
     {
-        if (menuManager != null)
+        if (doorMenuUI != null) doorMenuUI.SetActive(false);
+        if (minigameUI != null) minigameUI.SetActive(false);
+        SyncOpenState();
+
+        if (playerController != null) playerController.enabled = true;
+        PlatformHelper.SetCursorLocked(false);
+
+        if (Application.CanStreamedLevelBeLoaded(mainMenuSceneName))
         {
-            menuManager.QuitGame();
+            SceneManager.LoadScene(mainMenuSceneName);
         }
         else
         {
-#if UNITY_EDITOR
-            UnityEditor.EditorApplication.isPlaying = false;
-#else
-            Application.Quit();
-#endif
+            Debug.LogError("[DoorMenuTrigger] Scene MainMenu không có trong Build Settings: " + mainMenuSceneName);
         }
+    }
+
+    // 5. NÚT "THOÁT GAME" (Thoát hẳn ứng dụng)
+    public void ExitGame()
+    {
+#if UNITY_EDITOR
+        UnityEditor.EditorApplication.isPlaying = false;
+#else
+        Application.Quit();
+#endif
     }
 }

@@ -419,7 +419,7 @@ public class SettingsManager : MonoBehaviour
         if (tmp != null)
         {
             tmp.text = label;
-            tmp.enableWordWrapping = false;
+            tmp.textWrappingMode = TextWrappingModes.NoWrap;
             tmp.overflowMode = TextOverflowModes.Overflow;
             tmp.alignment = TextAlignmentOptions.Center;
             float max = tmp.fontSize > 0 ? tmp.fontSize : 24f;

@@ -33,10 +33,19 @@ public class MainMenuManager : MonoBehaviour
     public void PlayGame()
     {
         if (isLoading) return;
+
+        // Tự động kiểm tra: nếu chưa sửa tên trong Inspector thì fallback về SampleScene
         if (!Application.CanStreamedLevelBeLoaded(gallerySceneName))
         {
-            Debug.LogError("[MainMenu] Scene không có trong Build Settings: " + gallerySceneName);
-            return;
+            if (Application.CanStreamedLevelBeLoaded("SampleScene"))
+            {
+                gallerySceneName = "SampleScene";
+            }
+            else
+            {
+                Debug.LogError("[MainMenu] Scene không có trong Build Settings: " + gallerySceneName);
+                return;
+            }
         }
         StartCoroutine(LoadGalleryAsync());
     }

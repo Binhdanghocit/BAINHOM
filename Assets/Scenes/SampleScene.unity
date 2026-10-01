@@ -6550,63 +6550,6 @@ CanvasRenderer:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 224818808}
   m_CullTransparentMesh: 1
---- !u!1001 &225965382
-PrefabInstance:
-  m_ObjectHideFlags: 0
-  serializedVersion: 2
-  m_Modification:
-    serializedVersion: 3
-    m_TransformParent: {fileID: 0}
-    m_Modifications:
-    - target: {fileID: 6598815579406187027, guid: 18ddb545287c546e19cc77dc9fbb2189, type: 3}
-      propertyPath: m_LocalPosition.x
-      value: 352.66583
-      objectReference: {fileID: 0}
-    - target: {fileID: 6598815579406187027, guid: 18ddb545287c546e19cc77dc9fbb2189, type: 3}
-      propertyPath: m_LocalPosition.y
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 6598815579406187027, guid: 18ddb545287c546e19cc77dc9fbb2189, type: 3}
-      propertyPath: m_LocalPosition.z
-      value: -149.43558
-      objectReference: {fileID: 0}
-    - target: {fileID: 6598815579406187027, guid: 18ddb545287c546e19cc77dc9fbb2189, type: 3}
-      propertyPath: m_LocalRotation.w
-      value: 1
-      objectReference: {fileID: 0}
-    - target: {fileID: 6598815579406187027, guid: 18ddb545287c546e19cc77dc9fbb2189, type: 3}
-      propertyPath: m_LocalRotation.x
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 6598815579406187027, guid: 18ddb545287c546e19cc77dc9fbb2189, type: 3}
-      propertyPath: m_LocalRotation.y
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 6598815579406187027, guid: 18ddb545287c546e19cc77dc9fbb2189, type: 3}
-      propertyPath: m_LocalRotation.z
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 6598815579406187027, guid: 18ddb545287c546e19cc77dc9fbb2189, type: 3}
-      propertyPath: m_LocalEulerAnglesHint.x
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 6598815579406187027, guid: 18ddb545287c546e19cc77dc9fbb2189, type: 3}
-      propertyPath: m_LocalEulerAnglesHint.y
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 6598815579406187027, guid: 18ddb545287c546e19cc77dc9fbb2189, type: 3}
-      propertyPath: m_LocalEulerAnglesHint.z
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 6598815579406187037, guid: 18ddb545287c546e19cc77dc9fbb2189, type: 3}
-      propertyPath: m_Name
-      value: XR Device Simulator
-      objectReference: {fileID: 0}
-    m_RemovedComponents: []
-    m_RemovedGameObjects: []
-    m_AddedGameObjects: []
-    m_AddedComponents: []
-  m_SourcePrefab: {fileID: 100100000, guid: 18ddb545287c546e19cc77dc9fbb2189, type: 3}
 --- !u!1 &238202209
 GameObject:
   m_ObjectHideFlags: 0
@@ -11333,6 +11276,7 @@ MonoBehaviour:
     do t\u1EF1 t\u1EA1i, m\u01B0a thu\u1EADn gi\xF3 h\xF2a n\u01A1i \u0111\u1ED3ng
     qu\xEA."
   paintingSprite: {fileID: 21300000, guid: 3ea848c6e02a5204e893f47ac0da7eb8, type: 3}
+  voiceNarration: {fileID: 0}
 --- !u!114 &542022119
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -12838,6 +12782,7 @@ MonoBehaviour:
     b\xE0i h\u1ECDc r\u0103n \u0111e v\u1EC1 s\u1EF1 th\u1EE7y chung, h\xF2a kh\xED
     gia \u0111\xECnh."
   paintingSprite: {fileID: 21300000, guid: 6cc1222038624064187f5a69dab56afd, type: 3}
+  voiceNarration: {fileID: 0}
 --- !u!114 &647531313
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -15134,6 +15079,7 @@ MonoBehaviour:
     k\u1EF7 B\u1EAFc thu\u1ED9c v\xE0 m\u1EDF ra k\u1EF7 nguy\xEAn \u0111\u1ED9c
     l\u1EADp, t\u1EF1 ch\u1EE7 l\xE2u d\xE0i cho d\xE2n t\u1ED9c Vi\u1EC7t Nam."
   paintingSprite: {fileID: 21300000, guid: d1ffd88c6b054f94f8d8906c6a3e7d85, type: 3}
+  voiceNarration: {fileID: 0}
 --- !u!114 &837101253
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -15406,6 +15352,7 @@ MonoBehaviour:
     danh r\u1EA1ng r\u1EE1, h\u1ECDc h\xE0nh \u0111\u1ED7 \u0111\u1EA1t, gia \u0111\xECnh
     nh\u1EADn nhi\u1EC1u \u01A1n ph\u01B0\u1EDBc an khang."
   paintingSprite: {fileID: 21300000, guid: c9655d4fccd3387429957462cdfc1224, type: 3}
+  voiceNarration: {fileID: 0}
 --- !u!114 &842929808
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -15588,6 +15535,7 @@ MonoBehaviour:
     g\u1EAFm \u01B0\u1EDBc nguy\u1EC7n c\u1EA7u cho b\u1EA3n l\xE0ng kh\u1ECFe m\u1EA1nh,
     m\xF9a m\xE0ng b\u1ED9i thu."
   paintingSprite: {fileID: 21300000, guid: ce2fc0fb9d2ead8419fa64a618ae4bf4, type: 3}
+  voiceNarration: {fileID: 0}
 --- !u!114 &846045695
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -16374,6 +16322,7 @@ MonoBehaviour:
     bu\xF4n may b\xE1n \u0111\u1EAFt, c\xF4ng vi\u1EC7c kinh doanh lu\xF4n th\u1ECBnh
     v\u01B0\u1EE3ng ph\xE1t \u0111\u1EA1t."
   paintingSprite: {fileID: 21300000, guid: 7dbaba0d98ef69e49a978d5efdb175b8, type: 3}
+  voiceNarration: {fileID: 0}
 --- !u!114 &907701660
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -17475,6 +17424,7 @@ MonoBehaviour:
     cho m\u01B0a thu\u1EADn gi\xF3 h\xF2a, x\xF3m l\xE0ng kh\u1ECFe m\u1EA1nh v\xE0
     tr\xE0n \u0111\u1EA7y sinh kh\xED."
   paintingSprite: {fileID: 21300000, guid: fc2fcc729bf3d3c488f334dcb80fec78, type: 3}
+  voiceNarration: {fileID: 0}
 --- !u!114 &932679598
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -21932,6 +21882,7 @@ MonoBehaviour:
     hi\u1EC7n \u01B0\u1EDBc nguy\u1EC7n v\u1EC1 cu\u1ED9c s\u1ED1ng si\xEAu nhi\xEAn
     thanh th\u1EA3n, ch\xFAc ph\xFAc th\u1ECD khang ninh cho gia \u0111\xECnh."
   paintingSprite: {fileID: 21300000, guid: f3fcccd22609bf7449dd00124775ffa2, type: 3}
+  voiceNarration: {fileID: 0}
 --- !u!114 &947243789
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -22643,6 +22594,7 @@ MonoBehaviour:
     l\u1EE9a \u0111\xF4i b\xECnh d\u1ECB v\xE0 kh\xF4ng kh\xED r\u1ED9n r\xE3 ti\u1EBFng
     c\u01B0\u1EDDi ch\u1ED1n th\xF4n d\xE3."
   paintingSprite: {fileID: 21300000, guid: 52d15b8c4455ad94a872e2951a7e58ef, type: 3}
+  voiceNarration: {fileID: 0}
 --- !u!114 &1042292158
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -25983,6 +25935,7 @@ MonoBehaviour:
     ch\xE2n l\xFD d\xE2n gian \"\u1EDF hi\u1EC1n g\u1EB7p l\xE0nh, \xE1c gi\u1EA3
     \xE1c b\xE1o\"."
   paintingSprite: {fileID: 21300000, guid: 229169b8212358f49b84766313f8581c, type: 3}
+  voiceNarration: {fileID: 0}
 --- !u!114 &1240735793
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -28290,6 +28243,7 @@ MonoBehaviour:
     t\xE0i s\u1EAFc v\xE0 kh\xE1t v\u1ECDng c\xF4ng l\xFD, t\u1EF1 do, ph\xE1 v\u1EE1
     xi\u1EC1ng x\xEDch phong ki\u1EBFn c\u1EE7a ng\u01B0\u1EDDi b\xECnh d\xE2n x\u01B0a."
   paintingSprite: {fileID: 21300000, guid: 430880021399d764195eb45259ba8742, type: 3}
+  voiceNarration: {fileID: 0}
 --- !u!114 &1384801992
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -30286,6 +30240,7 @@ MonoBehaviour:
     s\u1EF1 khu\xF4n ph\xE9p, h\u1EE7 nho trong l\u1ED1i h\u1ECDc c\u1EED nghi\u1EC7p
     phong ki\u1EBFn x\u01B0a."
   paintingSprite: {fileID: 21300000, guid: 8a6d8880122abe247a28286d31ec1eb4, type: 3}
+  voiceNarration: {fileID: 0}
 --- !u!114 &1528189288
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -30952,6 +30907,7 @@ MonoBehaviour:
     no \u0111\u1EE7, gi\xE0u sang, con c\xE1i hi\u1EC1n th\u1EE5c n\u1EBFt na v\xE0
     gia \u0111\u1EA1o b\xECnh an, th\u1ECBnh v\u01B0\u1EE3ng."
   paintingSprite: {fileID: 21300000, guid: 3b5d6895eeb53d341b475716d60e8f61, type: 3}
+  voiceNarration: {fileID: 0}
 --- !u!114 &1574573764
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -31849,6 +31805,7 @@ MonoBehaviour:
     n\u0103m m\u01B0a thu\u1EADn gi\xF3 h\xF2a, l\xE0m \u0103n hanh th\xF4ng ph\xE1t
     \u0111\u1EA1t."
   paintingSprite: {fileID: 21300000, guid: e4cd2860c93136e46b2527a7f5a48d1f, type: 3}
+  voiceNarration: {fileID: 0}
 --- !u!114 &1657593240
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -33262,6 +33219,7 @@ MonoBehaviour:
     hi\u1EC7n \u01B0\u1EDBc nguy\u1EC7n v\u1EC1 cu\u1ED9c s\u1ED1ng si\xEAu nhi\xEAn
     thanh th\u1EA3n, ch\xFAc ph\xFAc th\u1ECD khang ninh cho gia \u0111\xECnh."
   paintingSprite: {fileID: 21300000, guid: f3fcccd22609bf7449dd00124775ffa2, type: 3}
+  voiceNarration: {fileID: 0}
 --- !u!114 &1745205198
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -33576,6 +33534,7 @@ MonoBehaviour:
     gi\xE0nh l\u1EA1i ch\u1EE7 quy\u1EC1n giang s\u01A1n sau th\u1EDDi k\u1EF3 d\xE0i
     B\u1EAFc thu\u1ED9c."
   paintingSprite: {fileID: 21300000, guid: 9e9cdefc41c2f8d49a9abaf9dd0e3f89, type: 3}
+  voiceNarration: {fileID: 0}
 --- !u!114 &1788582096
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -34393,6 +34352,7 @@ MonoBehaviour:
     c\u1EE7a ng\u01B0\u1EDDi b\xECnh d\xE2n tr\u01B0\u1EDBc t\u1EA7ng l\u1EDBp cai
     tr\u1ECB."
   paintingSprite: {fileID: 21300000, guid: 3c9c063c2c3884a4a990a0e83d6ccb70, type: 3}
+  voiceNarration: {fileID: 0}
 --- !u!114 &1819406272
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -34678,6 +34638,7 @@ MonoBehaviour:
     \u0111\u1EA7u ti\xEAn th\u1ED1ng nh\u1EA5t non s\xF4ng, d\u1EB9p lo\u1EA1n 12
     s\u1EE9 qu\xE2n l\u1EADp n\xEAn n\u01B0\u1EDBc \u0110\u1EA1i C\u1ED3 Vi\u1EC7t."
   paintingSprite: {fileID: 21300000, guid: a9e754aac1e2eee4282cea9ad142ac23, type: 3}
+  voiceNarration: {fileID: 0}
 --- !u!114 &1828942069
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -35010,6 +34971,7 @@ MonoBehaviour:
     d\u01B0\u01A1ng tr\xEAn m\xECnh l\u1EE3n th\u1EC3 hi\u1EC7n s\u1EF1 sinh s\xF4i,
     n\u1EA3y n\u1EDF."
   paintingSprite: {fileID: 21300000, guid: 976fdf546d15abb4cba19306d25644b9, type: 3}
+  voiceNarration: {fileID: 0}
 --- !u!114 &1859664664
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -35607,6 +35569,7 @@ MonoBehaviour:
     hi\u1EC7n \u01B0\u1EDBc nguy\u1EC7n v\u1EC1 cu\u1ED9c s\u1ED1ng si\xEAu nhi\xEAn
     thanh th\u1EA3n, ch\xFAc ph\xFAc th\u1ECD khang ninh cho gia \u0111\xECnh."
   paintingSprite: {fileID: 21300000, guid: f3fcccd22609bf7449dd00124775ffa2, type: 3}
+  voiceNarration: {fileID: 0}
 --- !u!114 &1896713258
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -36203,6 +36166,7 @@ MonoBehaviour:
     ch\xE2n l\xFD d\xE2n gian \"\u1EDF hi\u1EC1n g\u1EB7p l\xE0nh, \xE1c gi\u1EA3
     \xE1c b\xE1o\"."
   paintingSprite: {fileID: 21300000, guid: 229169b8212358f49b84766313f8581c, type: 3}
+  voiceNarration: {fileID: 0}
 --- !u!114 &1913637183
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -37248,6 +37212,7 @@ MonoBehaviour:
     tinh th\u1EA7n l\u1EA1c quan, kh\xE1t v\u1ECDng h\xF2a b\xECnh v\xE0 cu\u1ED9c
     s\u1ED1ng y\xEAn l\xE0nh c\u1EE7a ng\u01B0\u1EDDi n\xF4ng d\xE2n."
   paintingSprite: {fileID: 21300000, guid: 994db91811efe6b41b2988cee27dfc28, type: 3}
+  voiceNarration: {fileID: 0}
 --- !u!114 &1949957211
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -37603,12 +37568,13 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::AudioManager
   bgmSource: {fileID: 1962647759}
   sfxSource: {fileID: 1962647758}
+  voiceSource: {fileID: 0}
   bgmClips:
-  - {fileID: 8300000, guid: 444945bdc0270134a968e115c34a6fe4, type: 3}
-  - {fileID: 8300000, guid: f5ffe0a7faa73ea4bba952439a4aa7dd, type: 3}
-  - {fileID: 8300000, guid: 2ab03a9b0d473bb459d7e190223dbff9, type: 3}
-  - {fileID: 8300000, guid: f4fbc8c9b48c99642af0e5f1ef138962, type: 3}
+  - {fileID: 8300000, guid: b5e434801fa0ad14896c6b19f2ee4d6c, type: 3}
   - {fileID: 8300000, guid: f8d8fe3b4af92e04185146d6ce4f5d4e, type: 3}
+  - {fileID: 8300000, guid: 5e984d980f1de564db0a1b3d9098a0f9, type: 3}
+  - {fileID: 0}
+  - {fileID: 0}
   footstepClip: {fileID: 8300000, guid: 620cc173734a77040a02edea8046c28d, type: 3}
   jumpClip: {fileID: 8300000, guid: c67094411db019d48a61f26811124bcc, type: 3}
   inspectClip: {fileID: 8300000, guid: e8af9035f5758f44da37af4225a02619, type: 3}
@@ -38360,6 +38326,7 @@ MonoBehaviour:
     hi\u1EC7n \u01B0\u1EDBc nguy\u1EC7n v\u1EC1 cu\u1ED9c s\u1ED1ng si\xEAu nhi\xEAn
     thanh th\u1EA3n, ch\xFAc ph\xFAc th\u1ECD khang ninh cho gia \u0111\xECnh."
   paintingSprite: {fileID: 21300000, guid: f3fcccd22609bf7449dd00124775ffa2, type: 3}
+  voiceNarration: {fileID: 0}
 --- !u!114 &1989272495
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -38579,6 +38546,7 @@ MonoBehaviour:
     kh\xF4ng th\xE8m b\u1EAFt ch\u01B0\u1EDBc ng\u01B0\u1EDDi \u0111\u1EDDi c\xFAi
     \u0111\u1EA7u l\xE0m t\xEC thi\u1EBFp\"."
   paintingSprite: {fileID: 21300000, guid: 58aed41d1a84b1d449742f1e7b438d66, type: 3}
+  voiceNarration: {fileID: 0}
 --- !u!114 &1991300089
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -38667,6 +38635,7 @@ MonoBehaviour:
     r\u1EC9a l\xF4ng, con \u0111\xF9a ch\u1EA1y, con n\u1EA5p d\u01B0\u1EDBi b\u1EE5ng
     g\xE0 m\u1EB9. Con l\u1EA1i tr\xE8o l\xEAn l\u01B0ng g\xE0 m\u1EB9"
   paintingSprite: {fileID: 21300000, guid: 1ecf7daca5743c742b223118158d0b48, type: 3}
+  voiceNarration: {fileID: 0}
 --- !u!114 &1999360154
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -38842,6 +38811,7 @@ MonoBehaviour:
     ch\xE2n l\xFD d\xE2n gian \"\u1EDF hi\u1EC1n g\u1EB7p l\xE0nh, \xE1c gi\u1EA3
     \xE1c b\xE1o\"."
   paintingSprite: {fileID: 21300000, guid: 229169b8212358f49b84766313f8581c, type: 3}
+  voiceNarration: {fileID: 0}
 --- !u!114 &1999605975
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -39085,6 +39055,7 @@ MonoBehaviour:
     ch\xE2n l\xFD d\xE2n gian \"\u1EDF hi\u1EC1n g\u1EB7p l\xE0nh, \xE1c gi\u1EA3
     \xE1c b\xE1o\"."
   paintingSprite: {fileID: 21300000, guid: 229169b8212358f49b84766313f8581c, type: 3}
+  voiceNarration: {fileID: 0}
 --- !u!114 &2009093209
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -39427,6 +39398,7 @@ MonoBehaviour:
     ch\xFAc sinh con trai kh\u1ECFe m\u1EA1nh, th\xF4ng minh, r\u1EA1ng danh d\xF2ng
     t\u1ED9c v\xE0 mang vinh hi\u1EC3n v\u1EC1 cho gia \u0111\xECnh."
   paintingSprite: {fileID: 21300000, guid: b56ea36b5c18d8d489878abcc7f3b618, type: 3}
+  voiceNarration: {fileID: 0}
 --- !u!114 &2043327272
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -39540,6 +39512,7 @@ MonoBehaviour:
     m\u01A1 ng\xE0n \u0111\u1EDDi v\u1EC1 c\u1EA3nh l\xE0ng qu\xEA no \u0111\u1EE7,
     an l\u1EA1c, thi\xEAn nh\xE2n h\xF2a h\u1EE3p."
   paintingSprite: {fileID: 21300000, guid: c26a3590d9d82b44d8d08c6732201cb5, type: 3}
+  voiceNarration: {fileID: 0}
 --- !u!114 &2044322877
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -40508,6 +40481,7 @@ MonoBehaviour:
     b\xEAn trong t\xE2m h\u1ED3n, kh\xF4ng m\u1EA3i m\xEA \u0111u\u1ED5i theo nh\u1EEFng
     \u1EA3o \u1EA3nh ph\xF9 hoa ngo\xE0i th\u1EBF t\u1EE5c."
   paintingSprite: {fileID: 21300000, guid: e973e357f28367b4ea2a2e7c799793e0, type: 3}
+  voiceNarration: {fileID: 0}
 --- !u!114 &2116712729
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -40877,6 +40851,7 @@ MonoBehaviour:
     th\u1EC3 hi\u1EC7n ni\u1EC1m vui thu\u1EA7n ph\xE1c, l\u1EA1c quan v\xE0 tr\xE0n
     ng\u1EADp sinh kh\xED c\u1EE7a c\u01B0 d\xE2n n\xF4ng nghi\u1EC7p l\xFAa n\u01B0\u1EDBc."
   paintingSprite: {fileID: 21300000, guid: 60214f98b00309d489539c92a6283217, type: 3}
+  voiceNarration: {fileID: 0}
 --- !u!114 &2132055606
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -48943,4 +48918,3 @@ SceneRoots:
   - {fileID: 874772741}
   - {fileID: 1991117573171836402}
   - {fileID: 291220286}
-  - {fileID: 225965382}

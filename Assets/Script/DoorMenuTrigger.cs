@@ -19,6 +19,9 @@ public class DoorMenuTrigger : MonoBehaviour
     [Tooltip("Bảng giao diện Minigame Tô Màu")]
     public GameObject minigameUI;
 
+    [Header("Khoảng cách tương tác tối đa")]
+    public float maxInteractDistance = 4.5f;
+
     [Header("Scene Điều hướng")]
     public string mainMenuSceneName = "MainMenu";
 
@@ -44,6 +47,17 @@ public class DoorMenuTrigger : MonoBehaviour
         {
             gameObject.AddComponent<VRUIInputBridge>();
         }
+
+        // Tự động gắn relay chuyển tiếp click từ tất cả các mesh con (như Glass Door.004) lên cánh cửa chính
+        Collider[] childColliders = GetComponentsInChildren<Collider>(true);
+        foreach (var col in childColliders)
+        {
+            if (col.gameObject != this.gameObject && col.GetComponent<DoorChildRelay>() == null)
+            {
+                var relay = col.gameObject.AddComponent<DoorChildRelay>();
+                relay.targetDoor = this;
+            }
+        }
     }
 
     private void Start()
@@ -54,16 +68,7 @@ public class DoorMenuTrigger : MonoBehaviour
             playerController = FindAnyObjectByType<PlayerController>();
         }
 
-        if (doorMenuUI == null)
-        {
-            Transform found = transform.Find("Canvas/Panel_DoorMenu");
-            if (found != null) doorMenuUI = found.gameObject;
-            else
-            {
-                var panel = GameObject.Find("Panel_DoorMenu");
-                if (panel != null) doorMenuUI = panel;
-            }
-        }
+        ResolveDoorMenuUI();
 
         if (doorMenuUI != null)
         {
@@ -73,6 +78,35 @@ public class DoorMenuTrigger : MonoBehaviour
 
         if (minigameUI != null) minigameUI.SetActive(false);
         SyncOpenState();
+    }
+
+    private void ResolveDoorMenuUI()
+    {
+        if (doorMenuUI != null) return;
+
+        // 1. Tìm trong các con của cánh cửa (kể cả đang tắt SetActive = false)
+        var allChildren = GetComponentsInChildren<Transform>(true);
+        foreach (var t in allChildren)
+        {
+            if (t.name.Equals("Panel_DoorMenu", System.StringComparison.OrdinalIgnoreCase))
+            {
+                doorMenuUI = t.gameObject;
+                Debug.Log("[DoorMenuTrigger] Đã tự động kết nối với Panel_DoorMenu ở đối tượng con!");
+                return;
+            }
+        }
+
+        // 2. Tìm trong toàn bộ Scene (kể cả đang ẩn)
+        var allObjects = Resources.FindObjectsOfTypeAll<GameObject>();
+        foreach (var go in allObjects)
+        {
+            if (go.name.Equals("Panel_DoorMenu", System.StringComparison.OrdinalIgnoreCase) && go.scene.isLoaded)
+            {
+                doorMenuUI = go;
+                Debug.Log("[DoorMenuTrigger] Đã tự động tìm thấy Panel_DoorMenu trong Scene!");
+                return;
+            }
+        }
     }
 
     private void WireButtonsAtRuntime()
@@ -108,7 +142,15 @@ public class DoorMenuTrigger : MonoBehaviour
 
     private void Update()
     {
-        if (!isPlayerNear) return;
+        bool inRange = IsPlayerInRange();
+
+        // Cập nhật viền vàng outline khi player đứng gần
+        if (outline != null && outline.IsProximityActive != inRange)
+        {
+            outline.SetProximity(inRange);
+        }
+
+        if (!inRange) return;
 
         // Bấm E hoặc trigger VR để tương tác với cánh cửa
         if (Input.GetKeyDown(KeyCode.E) || HandTriggerInput.WasPressedThisFrame())
@@ -120,8 +162,28 @@ public class DoorMenuTrigger : MonoBehaviour
                 return;
             }
 
+            Debug.Log("[DoorMenuTrigger] Đã nhấn phím E / Trigger VR tại Cánh Cửa!");
             ToggleDoorMenu();
         }
+    }
+
+    public bool IsPlayerInRange()
+    {
+        if (isPlayerNear) return true;
+
+        // Kiểm tra khoảng cách thực tế giữa người chơi (hoặc Camera chính) và cánh cửa
+        Camera cam = Camera.main;
+        if (cam != null && Vector3.Distance(transform.position, cam.transform.position) <= maxInteractDistance)
+        {
+            return true;
+        }
+
+        if (playerController != null && Vector3.Distance(transform.position, playerController.transform.position) <= maxInteractDistance)
+        {
+            return true;
+        }
+
+        return false;
     }
 
     private void OnTriggerEnter(Collider other)
@@ -151,13 +213,28 @@ public class DoorMenuTrigger : MonoBehaviour
 
     private void OnMouseDown()
     {
+        HandleDirectClick();
+    }
+
+    public void OnChildMouseDown()
+    {
+        HandleDirectClick();
+    }
+
+    private void HandleDirectClick()
+    {
         // Không nhận click xuyên qua các bảng UI đang mở
         if (EventSystem.current != null && EventSystem.current.IsPointerOverGameObject()) return;
         if (IsOpen) return;
 
-        if (isPlayerNear)
+        if (IsPlayerInRange())
         {
+            Debug.Log("[DoorMenuTrigger] Click chuột trực tiếp vào Cánh Cửa!");
             ToggleDoorMenu();
+        }
+        else
+        {
+            Debug.LogWarning("[DoorMenuTrigger] Bạn đang đứng quá xa Cánh Cửa (hãy đi lại gần hơn)!");
         }
     }
 
@@ -167,11 +244,22 @@ public class DoorMenuTrigger : MonoBehaviour
         if (lastToggleFrame == Time.frameCount) return;
         lastToggleFrame = Time.frameCount;
 
-        if (doorMenuUI == null) return;
+        if (doorMenuUI == null)
+        {
+            ResolveDoorMenuUI();
+        }
+
+        if (doorMenuUI == null)
+        {
+            Debug.LogError("[DoorMenuTrigger] ❌ Chưa tìm thấy 'Panel_DoorMenu' trong Scene! Hãy vào menu Tools > 'Tự Động Setup 3 Nút Menu Cánh Cửa' trong Unity để tạo.");
+            return;
+        }
 
         bool isNowActive = !doorMenuUI.activeSelf;
         doorMenuUI.SetActive(isNowActive);
         SyncOpenState();
+
+        Debug.Log($"[DoorMenuTrigger] 👉 Trạng thái Menu Cửa hiện tại: {(isNowActive ? "BẬT (Mở)" : "TẮT (Đóng)")}");
 
         // Mở hoặc khóa chuột phù hợp theo nền tảng
         PlatformHelper.SetCursorLocked(!IsOpen);
@@ -209,6 +297,10 @@ public class DoorMenuTrigger : MonoBehaviour
 
             // Mở chuột để người chơi chọn màu và tô
             PlatformHelper.SetCursorLocked(false);
+        }
+        else
+        {
+            Debug.LogWarning("[DoorMenuTrigger] Chưa kéo bảng Minigame UI vào ô 'Minigame UI' của DoorMenuTrigger!");
         }
     }
 
@@ -274,5 +366,21 @@ public class DoorMenuTrigger : MonoBehaviour
 #else
         Application.Quit();
 #endif
+    }
+}
+
+/// <summary>
+/// Component gắn tự động vào các phần tử con của cánh cửa để chuyển tiếp sự kiện click chuột lên script chính
+/// </summary>
+public class DoorChildRelay : MonoBehaviour
+{
+    public DoorMenuTrigger targetDoor;
+
+    private void OnMouseDown()
+    {
+        if (targetDoor != null)
+        {
+            targetDoor.OnChildMouseDown();
+        }
     }
 }

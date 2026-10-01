@@ -53,9 +53,50 @@ public class DoorMenuTrigger : MonoBehaviour
             playerController = FindAnyObjectByType<PlayerController>();
         }
 
-        if (doorMenuUI != null) doorMenuUI.SetActive(false);
+        if (doorMenuUI == null)
+        {
+            Transform found = transform.Find("Canvas/Panel_DoorMenu");
+            if (found != null) doorMenuUI = found.gameObject;
+            else
+            {
+                var panel = GameObject.Find("Panel_DoorMenu");
+                if (panel != null) doorMenuUI = panel;
+            }
+        }
+
+        if (doorMenuUI != null)
+        {
+            WireButtonsAtRuntime();
+            doorMenuUI.SetActive(false);
+        }
+
         if (minigameUI != null) minigameUI.SetActive(false);
         SyncOpenState();
+    }
+
+    private void WireButtonsAtRuntime()
+    {
+        if (doorMenuUI == null) return;
+        Button[] buttons = doorMenuUI.GetComponentsInChildren<Button>(true);
+        foreach (var b in buttons)
+        {
+            string n = b.gameObject.name.ToLower();
+            if (n.Contains("minigame"))
+            {
+                b.onClick.RemoveListener(OpenMinigame);
+                b.onClick.AddListener(OpenMinigame);
+            }
+            else if (n.Contains("lai") || n.Contains("stay") || n.Contains("o_lai"))
+            {
+                b.onClick.RemoveListener(StayInGallery);
+                b.onClick.AddListener(StayInGallery);
+            }
+            else if (n.Contains("thoat") || n.Contains("menu") || n.Contains("quit") || n.Contains("exit"))
+            {
+                b.onClick.RemoveListener(GoToMainMenu);
+                b.onClick.AddListener(GoToMainMenu);
+            }
+        }
     }
 
     private void OnDisable()

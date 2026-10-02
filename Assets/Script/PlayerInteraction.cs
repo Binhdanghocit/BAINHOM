@@ -14,6 +14,7 @@ public class PlayerInteraction : MonoBehaviour
     private float tapStartTime;
     private Vector2 tapStartPos;
     private SettingsManager settingsManager;
+    private static int lastInteractionFrame = -1;
 
     private void Start()
     {
@@ -22,11 +23,51 @@ public class PlayerInteraction : MonoBehaviour
 
     private void Update()
     {
+        if (Input.GetKeyDown(KeyCode.E) || (HandTriggerInput.WasPressedThisFrame()
+            && !VRUIInputBridge.ConsumedPressThisFrame && !IsBlockingUIOpen()))
+            HandlePrimaryInteraction();
         if (Input.GetMouseButtonDown(0) && Cursor.lockState == CursorLockMode.Locked)
         {
             TryInteract();
         }
         HandleTouchTap();
+    }
+
+    private void HandlePrimaryInteraction()
+    {
+        if (lastInteractionFrame == Time.frameCount) return;
+        lastInteractionFrame = Time.frameCount;
+        if (settingsManager != null && settingsManager.IsSettingsOpen() || ExitToExteriorUI.IsAnyOpen) return;
+
+        // Consume the press when closing/advancing a modal so it cannot open another target.
+        if (PaintingUIManager.Instance != null && PaintingUIManager.Instance.IsPopupOpen)
+        {
+            PaintingUIManager.Instance.ClosePopup();
+            return;
+        }
+        if (DoorMenuTrigger.IsAnyOpen)
+        {
+            foreach (var door in FindObjectsByType<DoorMenuTrigger>(FindObjectsSortMode.None))
+            {
+                if (!door.IsOpen) continue;
+                door.CloseMinigame();
+                door.StayInGallery();
+                return;
+            }
+            return;
+        }
+        if (MinigameTrigger.IsAnyOpen)
+        {
+            foreach (var workshop in FindObjectsByType<MinigameTrigger>(FindObjectsSortMode.None))
+                if (workshop.IsMinigameOpen) { workshop.CloseMinigame(); return; }
+            return;
+        }
+        if (DialogueUIManager.Instance != null && DialogueUIManager.Instance.IsSpeaking)
+        {
+            DialogueUIManager.Instance.AdvanceLine();
+            return;
+        }
+        TryInteractFromCamera();
     }
 
     // Gọi tay từ UnityEvent của một UI mobile tự thiết kế (nếu có).
@@ -39,6 +80,7 @@ public class PlayerInteraction : MonoBehaviour
     {
         if (settingsManager != null && settingsManager.IsSettingsOpen()) return true;
         if (PaintingUIManager.Instance != null && PaintingUIManager.Instance.IsPopupOpen) return true;
+        if (DialogueUIManager.Instance != null && DialogueUIManager.Instance.IsSpeaking) return true;
         if (MinigameTrigger.IsAnyOpen) return true;
         if (DoorMenuTrigger.IsAnyOpen) return true;
         if (ExitToExteriorUI.IsAnyOpen) return true;
@@ -99,89 +141,84 @@ public class PlayerInteraction : MonoBehaviour
 
     public void TryInteract()
     {
+        if (lastInteractionFrame == Time.frameCount) return;
+        lastInteractionFrame = Time.frameCount;
+        TryInteractFromCamera();
+    }
+
+    private void TryInteractFromCamera()
+    {
         if (IsBlockingUIOpen()) return;
 
         Camera cam = Camera.main;
         if (cam == null) return;
 
         Ray ray = cam.ViewportPointToRay(new Vector3(0.5f, 0.5f, 0));
+        if (PlatformHelper.IsXRDisplayRunning())
+        {
+            if (!VRUIInputBridge.TryGetControllerRay(out ray)) return;
+        }
 
-        // Lấy tất cả các Object bị tia Raycast đâm xuyên qua
-        RaycastHit[] hits = Physics.RaycastAll(ray, interactDistance, ~0, QueryTriggerInteraction.Collide);
+        // Doorways can use their serialized maxInteractDistance; other targets
+        // retain this component's interactDistance. Sorting makes nearer walls
+        // and targets block anything behind them.
+        RaycastHit[] hits = Physics.RaycastAll(ray, DoorMenuTrigger.GetRaycastDistance(interactDistance), ~0, QueryTriggerInteraction.Collide);
+        System.Array.Sort(hits, (a, b) => a.distance.CompareTo(b.distance));
 
-        // Ưu tiên 1: Tranh (dùng return thay vì break để không kích hoạt trùng NPC/Cửa phía sau)
         foreach (RaycastHit hit in hits)
         {
-            if (PlayerDetector.IsPlayer(hit.collider.transform) || hit.collider.transform.IsChildOf(transform))
+            Transform hitTransform = hit.collider.transform;
+            if (PlayerDetector.IsPlayer(hit.collider) || hitTransform.IsChildOf(transform))
                 continue;
 
             PaintingTrigger pTrigger = hit.collider.GetComponent<PaintingTrigger>();
             if (pTrigger == null) pTrigger = hit.collider.GetComponentInParent<PaintingTrigger>();
             if (pTrigger != null)
             {
-                pTrigger.ToggleInteract();
+                if (hit.distance <= interactDistance) pTrigger.ToggleInteract();
                 return;
             }
 
             PaintingInfo painting = hit.collider.GetComponent<PaintingInfo>();
             if (painting == null) painting = hit.collider.GetComponentInParent<PaintingInfo>();
             if (painting == null) painting = hit.collider.GetComponentInChildren<PaintingInfo>();
-
             if (painting != null)
             {
-                if (PaintingUIManager.Instance != null)
-                {
+                if (hit.distance <= interactDistance && PaintingUIManager.Instance != null)
                     PaintingUIManager.Instance.ShowPaintingInfo(painting);
-                }
                 return;
             }
-        }
-
-        // Ưu tiên 2: NPC — cho điện thoại (tap) và PC click dùng được hội thoại
-        if (DialogueUIManager.Instance != null)
-        {
-            foreach (RaycastHit hit in hits)
-            {
-                if (PlayerDetector.IsPlayer(hit.collider.transform) || hit.collider.transform.IsChildOf(transform))
-                    continue;
-
-                NPCInteractable npc = hit.collider.GetComponent<NPCInteractable>();
-                if (npc == null) npc = hit.collider.GetComponentInParent<NPCInteractable>();
-                if (npc == null) continue;
-
-                npc.TriggerDialogue();
-                return;
-            }
-        }
-
-        // Ưu tiên 3: Cửa chuyển cảnh (cho cả Mobile tap và PC click chuột)
-        foreach (RaycastHit hit in hits)
-        {
-            if (PlayerDetector.IsPlayer(hit.collider.transform) || hit.collider.transform.IsChildOf(transform))
-                continue;
 
             DoorMenuTrigger door = hit.collider.GetComponent<DoorMenuTrigger>();
             if (door == null) door = hit.collider.GetComponentInParent<DoorMenuTrigger>();
             if (door != null)
             {
-                door.ToggleDoorMenu();
+                door.TryInteractFromRay(ray);
                 return;
             }
-        }
 
-        // Ưu tiên 4: Bàn Vẽ Minigame (cho cả Mobile tap và PC click chuột)
-        foreach (RaycastHit hit in hits)
-        {
-            if (PlayerDetector.IsPlayer(hit.collider.transform) || hit.collider.transform.IsChildOf(transform))
-                continue;
+            if (DialogueUIManager.Instance != null)
+            {
+                NPCInteractable npc = hit.collider.GetComponent<NPCInteractable>();
+                if (npc == null) npc = hit.collider.GetComponentInParent<NPCInteractable>();
+                if (npc != null)
+                {
+                    if (!npc.IsInteractionCollider(hit.collider)) continue;
+                    if (hit.distance <= interactDistance) npc.TriggerDialogue();
+                    return;
+                }
+            }
 
             MinigameTrigger mg = hit.collider.GetComponent<MinigameTrigger>();
             if (mg == null) mg = hit.collider.GetComponentInParent<MinigameTrigger>();
             if (mg != null)
             {
-                mg.ToggleMinigame();
+                if (hit.distance <= interactDistance) mg.ToggleMinigame();
                 return;
             }
+
+            // Non-interactive triggers are volumes; solid colliders block LOS.
+            if (!hit.collider.isTrigger) return;
         }
     }
 }

@@ -32,13 +32,15 @@ public static class PlatformHelper
     // True khi XR display subsystem đang chạy (HMD đã kết nối + loader đã start).
     // Thay thế XRSettings.isDeviceActive (cũ) — vẫn đúng cả khi XR được
     // khởi động MUỘN lúc chạy (runtime init) thay vì lúc mở app.
+    // WARN 1 fix: cache list static, tránh new List mỗi lần gọi (hàm này chạy mỗi frame).
+    private static readonly List<XRDisplaySubsystem> cachedDisplays = new List<XRDisplaySubsystem>();
     public static bool IsXRDisplayRunning()
     {
-        var displays = new List<XRDisplaySubsystem>();
-        SubsystemManager.GetSubsystems(displays);
-        for (int i = 0; i < displays.Count; i++)
+        cachedDisplays.Clear();
+        SubsystemManager.GetSubsystems(cachedDisplays);
+        for (int i = 0; i < cachedDisplays.Count; i++)
         {
-            if (displays[i] != null && displays[i].running) return true;
+            if (cachedDisplays[i] != null && cachedDisplays[i].running) return true;
         }
 #if UNITY_2019_1_OR_NEWER
 #pragma warning disable 0618

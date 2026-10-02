@@ -23,13 +23,21 @@ public static class SetupDoorMenuTool
             return;
         }
 
-        // Đảm bảo cua có DoorMenuTrigger, BoxCollider (IsTrigger), InteractableOutline
-        var doorTrigger = cuaGo.GetComponent<DoorMenuTrigger>();
-        if (doorTrigger == null) doorTrigger = Undo.AddComponent<DoorMenuTrigger>(cuaGo);
-
+        // Đảm bảo cua có BoxCollider (IsTrigger) TRƯỚC, vì DoorMenuTrigger ->
+        // InteractableOutline có [RequireComponent(Collider)]. Add sai thứ tự
+        // sẽ gây "Adding component failed" (log Editor.log line 2410).
         var boxCol = cuaGo.GetComponent<BoxCollider>();
         if (boxCol == null) boxCol = Undo.AddComponent<BoxCollider>(cuaGo);
         boxCol.isTrigger = true;
+
+        // Vùng tương tác kiểu tranh: đủ rộng để player bước vào mới bấm E được.
+        // Chỉ nới khi đang nhỏ hơn, không thu hẹp thiết kế có sẵn.
+        Vector3 minZone = new Vector3(3f, 2.5f, 3f);
+        Vector3 s = boxCol.size;
+        boxCol.size = new Vector3(Mathf.Max(s.x, minZone.x), Mathf.Max(s.y, minZone.y), Mathf.Max(s.z, minZone.z));
+
+        var doorTrigger = cuaGo.GetComponent<DoorMenuTrigger>();
+        if (doorTrigger == null) doorTrigger = Undo.AddComponent<DoorMenuTrigger>(cuaGo);
 
         if (cuaGo.GetComponent<InteractableOutline>() == null)
             Undo.AddComponent<InteractableOutline>(cuaGo);
@@ -62,7 +70,7 @@ public static class SetupDoorMenuTool
         Image panelImg = panelGo.GetComponent<Image>();
         if (panelImg != null)
         {
-            panelImg.color = new Color(0.1f, 0.1f, 0.15f, 0.95f); // Nền tối hiện đại sang trọng
+            panelImg.color = UiTheme.PanelBg; // Nền tối hiện đại sang trọng
         }
 
         // Tiêu đề: CỬA TRIỂN LÃM
@@ -72,11 +80,11 @@ public static class SetupDoorMenuTool
         GameObject titleGo = new GameObject("Title_Text", typeof(RectTransform), typeof(TextMeshProUGUI));
         titleGo.transform.SetParent(panelGo.transform, false);
         var titleTxt = titleGo.GetComponent<TextMeshProUGUI>();
-        titleTxt.text = "🚪 CỬA RA VÀO";
+        titleTxt.text = "CUA RA VAO";
         titleTxt.fontSize = 28;
         titleTxt.fontStyle = FontStyles.Bold;
         titleTxt.alignment = TextAlignmentOptions.Center;
-        titleTxt.color = new Color(1f, 0.85f, 0.3f, 1f); // Vàng ấm
+        titleTxt.color = UiTheme.TitleGold; // Vàng ấm
         var titleRt = titleGo.GetComponent<RectTransform>();
         titleRt.anchorMin = new Vector2(0.5f, 1f);
         titleRt.anchorMax = new Vector2(0.5f, 1f);
@@ -94,7 +102,7 @@ public static class SetupDoorMenuTool
         subTxt.text = "Bạn muốn thực hiện thao tác nào?";
         subTxt.fontSize = 18;
         subTxt.alignment = TextAlignmentOptions.Center;
-        subTxt.color = new Color(0.8f, 0.8f, 0.8f, 1f);
+        subTxt.color = UiTheme.SubGray;
         var subRt = subGo.GetComponent<RectTransform>();
         subRt.anchorMin = new Vector2(0.5f, 1f);
         subRt.anchorMax = new Vector2(0.5f, 1f);
@@ -102,14 +110,14 @@ public static class SetupDoorMenuTool
         subRt.sizeDelta = new Vector2(440f, 30f);
         subRt.anchoredPosition = new Vector2(0f, -70f);
 
-        // 4. Tạo 3 Button chuẩn chỉnh
+        // 4. Tạo 3 Button chuẩn chỉnh (màu đồng bộ UiTheme với Settings/dialog)
         CreateOrUpdateButton(
             panelGo.transform,
             "Btn_Minigame",
-            "🎨  Chơi Minigame",
+            "Choi Minigame",
             new Vector2(0f, -145f),
             new Vector2(400f, 65f),
-            new Color(0.92f, 0.52f, 0.12f, 1f), // Màu cam nổi bật
+            UiTheme.BtnAccent, // Màu cam nổi bật
             doorTrigger,
             nameof(doorTrigger.OpenMinigame)
         );
@@ -117,10 +125,10 @@ public static class SetupDoorMenuTool
         CreateOrUpdateButton(
             panelGo.transform,
             "Btn_O_Lai",
-            "🚶  Ở lại tham quan",
+            "O lai tham quan",
             new Vector2(0f, -225f),
             new Vector2(400f, 65f),
-            new Color(0.18f, 0.65f, 0.32f, 1f), // Màu xanh lá tươi
+            UiTheme.BtnConfirm, // Màu xanh lá tươi
             doorTrigger,
             nameof(doorTrigger.StayInGallery)
         );
@@ -128,17 +136,34 @@ public static class SetupDoorMenuTool
         CreateOrUpdateButton(
             panelGo.transform,
             "Btn_Thoat",
-            "❌  Về Menu Chính",
+            "Thoat game",
             new Vector2(0f, -305f),
             new Vector2(400f, 65f),
-            new Color(0.78f, 0.22f, 0.2f, 1f), // Màu đỏ thoát
+            UiTheme.BtnDanger, // Màu đỏ thoát
             doorTrigger,
-            nameof(doorTrigger.GoToMainMenu)
+            nameof(doorTrigger.ExitGame)
         );
 
         // 5. Gán panel vào ô Door Menu UI trên DoorMenuTrigger
         Undo.RecordObject(doorTrigger, "Assign Door Menu UI");
         doorTrigger.doorMenuUI = panelGo;
+
+        // 5b. Tự gán Workshop/Minigame UI nếu đang trống: tìm panel workshop
+        // có sẵn trong scene (bàn tô màu). Nút "Choi Minigame" chết
+        // trong log cũ chính vì minigameUI == null và không có Resolve.
+        if (doorTrigger.minigameUI == null)
+        {
+            GameObject workshop = FindWorkshopPanel();
+            if (workshop != null)
+            {
+                doorTrigger.minigameUI = workshop;
+                Debug.Log($"[SetupDoorMenuTool] Đã tự gán Workshop UI '{workshop.name}' vào DoorMenuTrigger.minigameUI.");
+            }
+            else
+            {
+                Debug.LogWarning("[SetupDoorMenuTool] Không tìm thấy panel tô màu trong scene. Hãy kéo panel chứa ColorFillMinigame vào ô 'Minigame UI' của DoorMenuTrigger, nút 'Choi Minigame' sẽ chỉ cảnh báo cho tới lúc đó.");
+            }
+        }
         EditorUtility.SetDirty(doorTrigger);
 
         // 6. Mặc định tắt mắt (SetActive = false) như yêu cầu
@@ -153,11 +178,28 @@ public static class SetupDoorMenuTool
         EditorUtility.DisplayDialog(
             "Thành công 🎉",
             "Đã tự động tạo và cấu hình hoàn tất 3 nút:\n\n" +
-            "1. Btn_Minigame: 🎨 Chơi Minigame -> DoorMenuTrigger.OpenMinigame\n" +
-            "2. Btn_O_Lai: 🚶 Ở lại tham quan -> DoorMenuTrigger.StayInGallery\n" +
-            "3. Btn_Thoat: ❌ Về Menu Chính -> DoorMenuTrigger.GoToMainMenu\n\n" +
+            "1. Btn_Minigame: Choi Minigame -> DoorMenuTrigger.OpenMinigame (mo Workshop)\n" +
+            "2. Btn_O_Lai: O lai tham quan -> DoorMenuTrigger.StayInGallery (đóng menu, ở lại)\n" +
+            "3. Btn_Thoat: Thoat game -> DoorMenuTrigger.ExitGame (thoát hẳn app)\n\n" +
             "Panel_DoorMenu đã được gán vào Cánh Cửa và tắt mắt (SetActive = false) sẵn sàng!",
             "Tuyệt vời");
+    }
+
+    // Tìm panel Workshop/Minigame có sẵn trong scene để auto-gán.
+    // Ưu tiên MinigameTrigger đã setup ở bàn vẽ, rồi tới tên panel quen thuộc.
+    private static GameObject FindWorkshopPanel()
+    {
+        var mgTrigger = Object.FindAnyObjectByType<MinigameTrigger>();
+        if (mgTrigger != null && mgTrigger.minigameUI != null)
+            return mgTrigger.minigameUI;
+
+        string[] names = { "Panel_Minigame", "Panel_Workshop", "WorkshopUI", "MinigameUI", "Panel_ColorFill" };
+        foreach (var n in names)
+        {
+            var go = GameObject.Find(n);
+            if (go != null) return go;
+        }
+        return null;
     }
 
     private static void CreateOrUpdateButton(
@@ -192,18 +234,9 @@ public static class SetupDoorMenuTool
         rt.sizeDelta = sizeDelta;
         rt.anchoredPosition = anchoredPos;
 
-        // Image background
-        Image img = btnGo.GetComponent<Image>();
-        img.color = btnColor;
-
-        // Button colors
+        // Image background + màu 3 trạng thái (đồng bộ UiTheme)
         Button btn = btnGo.GetComponent<Button>();
-        btn.targetGraphic = img;
-        var colors = btn.colors;
-        colors.normalColor = btnColor;
-        colors.highlightedColor = btnColor * 1.15f;
-        colors.pressedColor = btnColor * 0.85f;
-        btn.colors = colors;
+        UiTheme.ApplyButton(btn, btnColor);
 
         // Xóa listener cũ và gán persistent listener mới
         while (btn.onClick.GetPersistentEventCount() > 0)
@@ -211,11 +244,33 @@ public static class SetupDoorMenuTool
             UnityEventTools.RemovePersistentListener(btn.onClick, 0);
         }
 
+        // Fix ArgumentException "Could not register callback ... class null"
+        // (log Editor.log line 2419): targetScript null do AddComponent fail dây chuyền.
+        if (targetScript == null)
+        {
+            Debug.LogError($"[SetupDoorMenuTool] target DoorMenuTrigger bị null, bỏ qua gán nút '{buttonName}'.");
+            EditorUtility.SetDirty(btnGo);
+            return;
+        }
         var method = typeof(DoorMenuTrigger).GetMethod(methodName);
         if (method != null)
         {
-            var action = System.Delegate.CreateDelegate(typeof(UnityEngine.Events.UnityAction), targetScript, method) as UnityEngine.Events.UnityAction;
-            UnityEventTools.AddPersistentListener(btn.onClick, action);
+            try
+            {
+                var action = System.Delegate.CreateDelegate(typeof(UnityEngine.Events.UnityAction), targetScript, method) as UnityEngine.Events.UnityAction;
+                if (action != null)
+                    UnityEventTools.AddPersistentListener(btn.onClick, action);
+                else
+                    Debug.LogError($"[SetupDoorMenuTool] Không tạo được UnityAction cho '{methodName}'.");
+            }
+            catch (System.ArgumentException ex)
+            {
+                Debug.LogError($"[SetupDoorMenuTool] Gán nút '{buttonName}' -> '{methodName}' thất bại: {ex.Message}");
+            }
+        }
+        else
+        {
+            Debug.LogError($"[SetupDoorMenuTool] Không tìm thấy method DoorMenuTrigger.{methodName}");
         }
 
         // Text bên trong nút
@@ -240,7 +295,7 @@ public static class SetupDoorMenuTool
         tmpText.fontSize = 24;
         tmpText.fontStyle = FontStyles.Bold;
         tmpText.alignment = TextAlignmentOptions.Center;
-        tmpText.color = Color.white;
+        tmpText.color = UiTheme.TextWhite;
 
         RectTransform textRt = textGo.GetComponent<RectTransform>();
         textRt.anchorMin = Vector2.zero;

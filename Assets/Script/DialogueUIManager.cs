@@ -11,13 +11,23 @@ public class DialogueUIManager : MonoBehaviour
     private GameObject panel;
     private TextMeshProUGUI nameText;
     private TextMeshProUGUI bodyText;
-    private GameObject prompt;
+    private Button skipButton;
+    private GameObject choicesRoot;
+    private Button workshopButton;
+    private Button continueButton;
+    private Button nextLineButton;
 
     private NPCInteractable currentNPC;
     private int lineIndex;
     private int promptRequests;
-    // Cache trạng thái hiện/ẩn prompt: chỉ gọi SetActive khi thật sự đổi -> không tốn GC/UI rebuild thừa
-    private bool promptVisible;
+    private bool modalInputCaptured;
+
+    public static DialogueUIManager EnsureInstance()
+    {
+        if (Instance != null) return Instance;
+        GameObject managerObject = new GameObject("Dialogue UI Manager");
+        return managerObject.AddComponent<DialogueUIManager>();
+    }
 
     private void Awake()
     {
@@ -28,7 +38,15 @@ public class DialogueUIManager : MonoBehaviour
         }
 
         Instance = this;
+        VRUIInputBridge.EnsureInstance();
         BuildUI();
+    }
+
+    private void OnDestroy()
+    {
+        if (Instance == this) Instance = null;
+        IsSpeaking = false;
+        RestoreModalInput();
     }
 
     private void BuildUI()
@@ -53,7 +71,7 @@ public class DialogueUIManager : MonoBehaviour
         panelRect.offsetMin = new Vector2(20f, 20f);
         panelRect.offsetMax = new Vector2(-20f, -20f);
         var panelImage = panel.AddComponent<Image>();
-        panelImage.color = new Color(0f, 0f, 0f, 0.75f);
+        panelImage.color = UiTheme.PanelBg;
 
         // Tên NPC
         var nameGo = new GameObject("NPCName");
@@ -61,7 +79,7 @@ public class DialogueUIManager : MonoBehaviour
         nameText = nameGo.AddComponent<TextMeshProUGUI>();
         nameText.fontSize = 32;
         nameText.fontStyle = FontStyles.Bold;
-        nameText.color = Color.yellow;
+        nameText.color = UiTheme.TitleGold;
         var nameRect = nameText.rectTransform;
         nameRect.anchorMin = new Vector2(0f, 1f);
         nameRect.anchorMax = new Vector2(1f, 1f);
@@ -79,72 +97,194 @@ public class DialogueUIManager : MonoBehaviour
         var bodyRect = bodyText.rectTransform;
         bodyRect.anchorMin = new Vector2(0f, 0f);
         bodyRect.anchorMax = new Vector2(1f, 0.9f);
-        bodyRect.offsetMin = new Vector2(20f, 20f);
+        bodyRect.offsetMin = new Vector2(20f, 90f);
         bodyRect.offsetMax = new Vector2(-20f, -55f);
         bodyText.alignment = TextAlignmentOptions.TopLeft;
 
-        // Prompt "Nhấn E"
-        prompt = new GameObject("InteractPrompt");
-        prompt.transform.SetParent(canvasGo.transform, false);
-        var promptText = prompt.AddComponent<TextMeshProUGUI>();
-        // Prompt theo nền tảng: điện thoại tap, PC bấm E/click
-        promptText.text = PlatformHelper.IsXRDisplayRunning()
-            ? "Bấm Trigger tay cầm để tương tác"
-            : (PlatformHelper.IsTouchDevice()
-                ? "Chạm vào nhân vật/tranh để tương tác"
-                : "Nhấn E / Click để tương tác");
-        promptText.fontSize = 30;
-        promptText.fontStyle = FontStyles.Bold;
-        promptText.alignment = TextAlignmentOptions.Center;
-        var promptRect = promptText.rectTransform;
-        promptRect.anchorMin = new Vector2(0.5f, 0.5f);
-        promptRect.anchorMax = new Vector2(0.5f, 0.5f);
-        promptRect.sizeDelta = new Vector2(500f, 60f);
-        promptText.color = Color.white;
-
         panel.SetActive(false);
-        prompt.SetActive(false);
+
+        // Tua nhanh is shown for the guide flow; normal NPC conversations
+        // keep their original interaction pattern.
+        skipButton = CreateButton(panel.transform, "SkipDialogue", "Tua nhanh", Vector2.zero, new Vector2(220f, 56f), new Color(0.25f, 0.38f, 0.48f, 1f));
+        RectTransform skipRect = skipButton.GetComponent<RectTransform>();
+        skipRect.anchorMin = new Vector2(1f, 0f);
+        skipRect.anchorMax = new Vector2(1f, 0f);
+        skipRect.pivot = new Vector2(1f, 0f);
+        skipRect.anchoredPosition = new Vector2(-25f, 25f);
+        skipButton.onClick.AddListener(SkipToChoices);
+        skipButton.gameObject.SetActive(false);
+
+        nextLineButton = CreateButton(panel.transform, "NextDialogueLine", "Tiếp tục", new Vector2(25f, 25f), new Vector2(220f, 56f), UiTheme.BtnConfirm);
+        RectTransform nextRect = nextLineButton.GetComponent<RectTransform>();
+        nextRect.anchorMin = nextRect.anchorMax = Vector2.zero;
+        nextRect.pivot = Vector2.zero;
+        nextLineButton.onClick.AddListener(AdvanceLine);
+
+        choicesRoot = new GameObject("GuideChoices", typeof(RectTransform));
+        choicesRoot.transform.SetParent(panel.transform, false);
+        RectTransform choicesRect = choicesRoot.GetComponent<RectTransform>();
+        choicesRect.anchorMin = new Vector2(0.5f, 0f);
+        choicesRect.anchorMax = new Vector2(0.5f, 0f);
+        choicesRect.pivot = new Vector2(0.5f, 0f);
+        choicesRect.anchoredPosition = new Vector2(0f, 28f);
+        choicesRect.sizeDelta = new Vector2(620f, 145f);
+
+        workshopButton = CreateButton(choicesRoot.transform, "WorkshopChoice", "Qua workshop làm tranh", new Vector2(0f, 78f), new Vector2(600f, 62f), UiTheme.BtnAccent);
+        workshopButton.onClick.AddListener(ChooseWorkshop);
+        continueButton = CreateButton(choicesRoot.transform, "ContinueTourChoice", "Tiếp tục tham quan triển lãm", new Vector2(0f, 8f), new Vector2(600f, 62f), UiTheme.BtnConfirm);
+        continueButton.onClick.AddListener(ContinueTour);
+        choicesRoot.SetActive(false);
+    }
+
+    private Button CreateButton(Transform parent, string objectName, string label, Vector2 anchoredPosition, Vector2 size, Color color)
+    {
+        GameObject buttonObject = new GameObject(objectName, typeof(RectTransform), typeof(Image), typeof(Button));
+        buttonObject.transform.SetParent(parent, false);
+        RectTransform rect = buttonObject.GetComponent<RectTransform>();
+        rect.anchorMin = new Vector2(0.5f, 0f);
+        rect.anchorMax = new Vector2(0.5f, 0f);
+        rect.pivot = new Vector2(0.5f, 0f);
+        rect.anchoredPosition = anchoredPosition;
+        rect.sizeDelta = size;
+
+        Image image = buttonObject.GetComponent<Image>();
+        image.color = color;
+        Button button = buttonObject.GetComponent<Button>();
+        UiTheme.ApplyButton(button, color);
+
+        GameObject textObject = new GameObject("Label", typeof(RectTransform), typeof(TextMeshProUGUI));
+        textObject.transform.SetParent(buttonObject.transform, false);
+        RectTransform textRect = textObject.GetComponent<RectTransform>();
+        textRect.anchorMin = Vector2.zero;
+        textRect.anchorMax = Vector2.one;
+        textRect.offsetMin = new Vector2(12f, 4f);
+        textRect.offsetMax = new Vector2(-12f, -4f);
+        TextMeshProUGUI text = textObject.GetComponent<TextMeshProUGUI>();
+        text.text = label;
+        text.fontSize = 22f;
+        text.fontStyle = FontStyles.Bold;
+        text.color = Color.white;
+        text.alignment = TextAlignmentOptions.Center;
+        text.raycastTarget = false;
+        return button;
     }
 
     public void StartDialogue(NPCInteractable npc)
     {
+        if (npc == null) return;
         currentNPC = npc;
         lineIndex = 0;
         IsSpeaking = true;
         nameText.text = npc.npcName;
-        bodyText.text = npc.dialogueLines.Length > 0 ? npc.dialogueLines[0] : "...";
+        bodyText.text = npc.dialogueLines != null && npc.dialogueLines.Length > 0 ? npc.dialogueLines[0] : "...";
+        bodyText.rectTransform.offsetMin = new Vector2(20f, 90f);
+        nameText.gameObject.SetActive(true);
+        bodyText.gameObject.SetActive(true);
+        skipButton.gameObject.SetActive(npc.workshopTrigger != null);
+        nextLineButton.gameObject.SetActive(true);
+        choicesRoot.SetActive(false);
         panel.SetActive(true);
-        UpdatePrompt();
+        CaptureModalInput();
         PlayClickSFX();
     }
 
     public void AdvanceLine()
     {
         if (!IsSpeaking || currentNPC == null) return;
+        if (choicesRoot != null && choicesRoot.activeSelf) return;
 
         lineIndex++;
-        if (lineIndex < currentNPC.dialogueLines.Length)
+        if (currentNPC.dialogueLines != null && lineIndex < currentNPC.dialogueLines.Length)
         {
             bodyText.text = currentNPC.dialogueLines[lineIndex];
             PlayClickSFX();
         }
         else
         {
-            EndDialogue();
+            ShowPostDialogueChoices();
         }
+    }
+
+    public bool IsConversationWith(NPCInteractable npc)
+    {
+        return IsSpeaking && currentNPC == npc;
+    }
+
+    private void SkipToChoices()
+    {
+        if (!IsSpeaking || currentNPC == null || currentNPC.workshopTrigger == null) return;
+        ShowPostDialogueChoices();
+    }
+
+    private void ShowPostDialogueChoices()
+    {
+        if (!IsSpeaking || currentNPC == null) return;
+        if (currentNPC.workshopTrigger == null)
+        {
+            EndDialogue();
+            return;
+        }
+
+        // Keep the modal active so unrelated NPCs and interactables cannot
+        // start another interaction while the two choices are on screen.
+        nameText.gameObject.SetActive(false);
+        bodyText.gameObject.SetActive(false);
+        skipButton.gameObject.SetActive(false);
+        nextLineButton.gameObject.SetActive(false);
+        choicesRoot.SetActive(true);
+        panel.SetActive(true);
+        PlayClickSFX();
+    }
+
+    private void ChooseWorkshop()
+    {
+        if (!IsSpeaking || currentNPC == null) return;
+        MinigameTrigger target = currentNPC.workshopTrigger;
+        if (target == null || target.minigameUI == null)
+        {
+            Debug.LogError("[DialogueUIManager] Chưa gán MinigameTrigger hoặc workshop UI cho NPC hướng dẫn viên.");
+            return;
+        }
+        EndDialogue();
+        target.OpenMinigame();
+    }
+
+    private void ContinueTour()
+    {
+        if (IsSpeaking) EndDialogue();
     }
 
     public void EndDialogue()
     {
         currentNPC = null;
         IsSpeaking = false;
-        panel.SetActive(false);
-        UpdatePrompt();
+        if (panel != null) panel.SetActive(false);
+        if (choicesRoot != null) choicesRoot.SetActive(false);
+        RestoreModalInput();
+    }
+
+    public void CancelDialogue(NPCInteractable npc)
+    {
+        if (IsSpeaking && currentNPC == npc) EndDialogue();
+    }
+
+    private void CaptureModalInput()
+    {
+        if (modalInputCaptured) return;
+        modalInputCaptured = true;
+        ViewModeController.PauseGameplayForModal();
+    }
+
+    private void RestoreModalInput()
+    {
+        if (!modalInputCaptured) return;
+        modalInputCaptured = false;
+        ViewModeController.TryResumeGameplayIfClear();
     }
 
     public void SetPromptActive(bool active)
     {
-        UpdatePrompt(active ? 1 : 0);
+        // Compatibility API: interaction hints are intentionally hidden on all platforms.
     }
 
     // Các interactable đăng ký/hủy đăng ký khi player đến gần/rời đi
@@ -158,24 +298,6 @@ public class DialogueUIManager : MonoBehaviour
         {
             promptRequests--;
             if (promptRequests < 0) promptRequests = 0;
-        }
-        UpdatePrompt();
-    }
-
-    private void UpdatePrompt()
-    {
-        UpdatePrompt(promptRequests);
-    }
-
-    // Điểm cập nhật prompt duy nhất: tự bỏ qua nếu trạng thái hiện/ẩn không đổi
-    private void UpdatePrompt(int requested)
-    {
-        bool shouldShow = requested > 0 && !IsSpeaking;
-        if (promptVisible == shouldShow) return;
-        promptVisible = shouldShow;
-        if (prompt != null)
-        {
-            prompt.SetActive(shouldShow);
         }
     }
 

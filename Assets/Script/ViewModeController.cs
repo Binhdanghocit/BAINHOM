@@ -39,6 +39,10 @@ public class ViewModeController : MonoBehaviour
         if (mobileControls == null)
             mobileControls = MobileControlsOverlay.FindOrCreate();
 
+        ResolveRigReferences();
+        EnsureRigInteraction(desktopPlayerRig);
+        EnsureRigInteraction(vrRig);
+
         // Tự gắn Tag "Player" cho 2 rig (đỡ phải set tay trong Editor;
         // set trùng tag cũ cũng không sao). Mọi system nhận diện qua PlayerDetector.
         EnsurePlayerTag(desktopPlayerRig);
@@ -93,8 +97,118 @@ public class ViewModeController : MonoBehaviour
         thirdPersonCamera.distance = thirdPersonCamera.IsFirstPerson ? 2.5f : 0f;
     }
 
+    /// <summary>Khôi phục input theo cùng quy tắc rig/platform đã dùng khi vào Gallery.</summary>
+    public static bool TryResumeGameplayIfClear()
+    {
+        if (DoorMenuTrigger.IsAnyOpen || MinigameTrigger.IsAnyOpen || ExitToExteriorUI.IsAnyOpen)
+            return false;
+        if (PaintingUIManager.Instance != null && PaintingUIManager.Instance.IsPopupOpen) return false;
+        if (DialogueUIManager.Instance != null && DialogueUIManager.Instance.IsSpeaking) return false;
+        SettingsManager settings = FindAnyObjectByType<SettingsManager>();
+        if (settings != null && settings.IsSettingsOpen()) return false;
+
+        Time.timeScale = 1f;
+        ViewModeController mode = FindAnyObjectByType<ViewModeController>();
+        if (mode != null) mode.ResumeCurrentPlatform();
+        else ResumeWithoutViewModeController();
+        return true;
+    }
+
+    private void ResumeCurrentPlatform()
+    {
+        ResolveRigReferences();
+        isVR = PlatformHelper.IsXRDisplayRunning();
+        if (isVR && vrRig == null)
+        {
+            Debug.LogWarning("[ViewMode] XR đang chạy nhưng vrRig chưa được gán; khôi phục rig desktop.");
+            isVR = false;
+        }
+
+        if (vrRig != null) vrRig.SetActive(isVR);
+        if (desktopPlayerRig != null) desktopPlayerRig.SetActive(!isVR);
+        EnsureRigInteraction(desktopPlayerRig);
+        EnsureRigInteraction(vrRig);
+        SingleAudioListener.EnforceSingleListener();
+
+        if (thirdPersonCamera == null && desktopPlayerRig != null)
+            thirdPersonCamera = desktopPlayerRig.GetComponentInChildren<ThirdPersonCamera>(true);
+        if (thirdPersonCamera == null)
+            thirdPersonCamera = FindAnyObjectByType<ThirdPersonCamera>(FindObjectsInactive.Include);
+
+        if (!isVR)
+        {
+            if (desktopPlayerRig != null)
+            {
+                foreach (PlayerController controller in desktopPlayerRig.GetComponentsInChildren<PlayerController>(true))
+                    controller.enabled = true;
+            }
+            else
+            {
+                PlayerController controller = FindAnyObjectByType<PlayerController>(FindObjectsInactive.Include);
+                if (controller != null && controller.gameObject.activeInHierarchy) controller.enabled = true;
+            }
+            if (thirdPersonCamera != null && thirdPersonCamera.gameObject.activeInHierarchy)
+                thirdPersonCamera.enabled = true;
+        }
+
+        foreach (PlayerInteraction interaction in FindObjectsByType<PlayerInteraction>(FindObjectsInactive.Exclude))
+            interaction.enabled = true;
+
+        if (mobileControls == null) mobileControls = FindAnyObjectByType<MobileControlsOverlay>(FindObjectsInactive.Include);
+        if (mobileControls == null && !isVR && PlatformHelper.IsTouchDevice())
+            mobileControls = MobileControlsOverlay.FindOrCreate();
+        bool touchGameplay = !isVR && PlatformHelper.IsTouchDevice();
+        if (mobileControls != null)
+        {
+            mobileControls.SetGameplayInputEnabled(false); // clear stale fingers/look/jump before resuming
+            mobileControls.SetVisible(touchGameplay);
+            mobileControls.SetGameplayInputEnabled(touchGameplay);
+        }
+
+        PlayerDetector.RegisterRoot(desktopPlayerRig != null ? desktopPlayerRig.transform : null);
+        PlayerDetector.RegisterRoot(vrRig != null ? vrRig.transform : null);
+        PlatformHelper.SetCursorLocked(!isVR && !PlatformHelper.IsTouchDevice());
+    }
+
+    private void ResolveRigReferences()
+    {
+        if (vrRig != null) return;
+        Transform[] sceneTransforms = FindObjectsByType<Transform>(FindObjectsInactive.Include);
+        foreach (Transform candidate in sceneTransforms)
+        {
+            if (candidate != null && candidate.name == "XR Origin (XR Rig)")
+            {
+                vrRig = candidate.gameObject;
+                return;
+            }
+        }
+    }
+
+    private static void ResumeWithoutViewModeController()
+    {
+        bool isVR = PlatformHelper.IsXRDisplayRunning();
+        foreach (PlayerController controller in FindObjectsByType<PlayerController>(FindObjectsInactive.Exclude))
+            controller.enabled = !isVR;
+        foreach (ThirdPersonCamera cameraController in FindObjectsByType<ThirdPersonCamera>(FindObjectsInactive.Exclude))
+            cameraController.enabled = !isVR;
+        foreach (PlayerInteraction interaction in FindObjectsByType<PlayerInteraction>(FindObjectsInactive.Exclude))
+            interaction.enabled = true;
+
+        MobileControlsOverlay controls = FindAnyObjectByType<MobileControlsOverlay>(FindObjectsInactive.Include);
+        bool touchGameplay = !isVR && PlatformHelper.IsTouchDevice();
+        if (controls != null)
+        {
+            controls.SetGameplayInputEnabled(false);
+            controls.SetVisible(touchGameplay);
+            controls.SetGameplayInputEnabled(touchGameplay);
+        }
+        PlatformHelper.SetCursorLocked(!isVR && !PlatformHelper.IsTouchDevice());
+    }
+
     private void ApplyMode(bool firstTime)
     {
+        EnsureRigInteraction(desktopPlayerRig);
+        EnsureRigInteraction(vrRig);
         if (isVR)
         {
             if (vrRig == null)
@@ -123,5 +237,24 @@ public class ViewModeController : MonoBehaviour
         }
 
         PlatformHelper.SetCursorLocked(!isVR && !PlatformHelper.IsTouchDevice());
+        SingleAudioListener.EnforceSingleListener();
+        if (!TryResumeGameplayIfClear()) PauseGameplayForModal();
+    }
+
+    public static void PauseGameplayForModal()
+    {
+        foreach (PlayerController controller in FindObjectsByType<PlayerController>(FindObjectsInactive.Exclude))
+            controller.enabled = false;
+        foreach (ThirdPersonCamera cameraController in FindObjectsByType<ThirdPersonCamera>(FindObjectsInactive.Exclude))
+            cameraController.enabled = false;
+        MobileControlsOverlay controls = FindAnyObjectByType<MobileControlsOverlay>();
+        if (controls != null) controls.SetGameplayInputEnabled(false);
+        PlatformHelper.SetCursorLocked(false);
+    }
+
+    private static void EnsureRigInteraction(GameObject rig)
+    {
+        if (rig != null && rig.GetComponentInChildren<PlayerInteraction>(true) == null)
+            rig.AddComponent<PlayerInteraction>();
     }
 }

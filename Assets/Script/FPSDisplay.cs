@@ -24,7 +24,9 @@ public class FPSDisplay : MonoBehaviour
     private void Update()
     {
         timeleft -= Time.deltaTime;
-        accum += Time.timeScale / Time.deltaTime;
+        // BUG 6 fix: pause (timeScale = 0) thì deltaTime = 0 -> bỏ qua, tránh Inf FPS.
+        if (Time.deltaTime > 0f)
+            accum += Time.timeScale / Time.deltaTime;
         ++frames;
 
         // Cập nhật con số hiển thị sau mỗi khoảng updateInterval

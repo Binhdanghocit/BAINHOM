@@ -1,5 +1,6 @@
 using UnityEngine;
 using UnityEngine.EventSystems;
+using System.Collections.Generic;
 
 /// <summary>
 /// Gắn vào Bàn Vẽ / Góc Tô Màu trong triển lãm.
@@ -17,20 +18,34 @@ public class MinigameTrigger : MonoBehaviour
     [Tooltip("Kéo GameObject chứa PlayerController vào để khoá nhân vật lúc đang chơi minigame (để trống sẽ tự tìm)")]
     public MonoBehaviour playerController;
 
+    private ThirdPersonCamera thirdPersonCamera;
+
     private bool isPlayerNear = false;
     private InteractableOutline outline;
     private int lastToggleFrame = -1;
+    private readonly HashSet<Collider> playerCollidersInRange = new HashSet<Collider>();
 
     // Property để các script khác kiểm tra trạng thái (PaintingTrigger, NPCInteractable, Crosshair...)
     public bool IsMinigameOpen { get; private set; }
-    public static bool IsAnyOpen { get; private set; }
+
+    // BUG 1 fix: static flag dạng HashSet — nhiều bàn vẽ cùng mở thì đóng 1 bàn
+    // không clear oan cờ của bàn còn lại.
+    private static readonly HashSet<MinigameTrigger> openInstances = new HashSet<MinigameTrigger>();
+    // Đếm panel minigame do DoorMenuTrigger mở trực tiếp (panel riêng, không qua
+    // instance MinigameTrigger nào) — BUG 2 fix.
+    private static int externalOpenCount = 0;
+    public static bool IsAnyOpen => openInstances.Count > 0 || externalOpenCount > 0;
+
+    // DoorMenuTrigger gọi khi nó tự bật/tắt panel workshop riêng.
+    public static void SetExternalOpen(bool open)
+    {
+        externalOpenCount += open ? 1 : -1;
+        if (externalOpenCount < 0) externalOpenCount = 0;
+    }
 
     private void Awake()
     {
-        if (GetComponent<VRUIInputBridge>() == null)
-        {
-            gameObject.AddComponent<VRUIInputBridge>();
-        }
+        VRUIInputBridge.EnsureInstance();
     }
 
     private void Start()
@@ -40,37 +55,42 @@ public class MinigameTrigger : MonoBehaviour
         {
             playerController = FindAnyObjectByType<PlayerController>();
         }
+        ResolveThirdPersonCamera();
         if (minigameUI != null) minigameUI.SetActive(false);
         IsMinigameOpen = false;
-        IsAnyOpen = false;
+        openInstances.Remove(this);
     }
 
     private void OnDisable()
     {
-        if (IsMinigameOpen)
+        playerCollidersInRange.Clear();
+        isPlayerNear = false;
+        if (outline != null) outline.SetProximity(false);
+        if (IsMinigameOpen || (minigameUI != null && minigameUI.activeSelf))
         {
-            IsMinigameOpen = false;
-            IsAnyOpen = false;
-            if (playerController != null) playerController.enabled = true;
+            CloseMinigame();
+        }
+        else
+        {
+            openInstances.Remove(this);
         }
     }
 
-    private void Update()
+
+
+    private void ResolveThirdPersonCamera()
     {
-        if (!isPlayerNear) return;
-
-        bool pressed = Input.GetKeyDown(KeyCode.E) || HandTriggerInput.WasPressedThisFrame();
-        if (!pressed) return;
-
-        ToggleMinigame();
+        if (playerController is PlayerController controller && controller.cameraTransform != null)
+            thirdPersonCamera = controller.cameraTransform.GetComponent<ThirdPersonCamera>();
+        if (thirdPersonCamera == null && Camera.main != null)
+            thirdPersonCamera = Camera.main.GetComponent<ThirdPersonCamera>();
     }
 
     private void OnTriggerEnter(Collider other)
     {
         if (PlayerDetector.IsPlayer(other))
         {
-            isPlayerNear = true;
-            if (outline != null) outline.SetProximity(true);
+            if (playerCollidersInRange.Add(other)) UpdateNearbyState();
         }
     }
 
@@ -78,11 +98,7 @@ public class MinigameTrigger : MonoBehaviour
     {
         if (PlayerDetector.IsPlayer(other))
         {
-            isPlayerNear = false;
-            if (outline != null) outline.SetProximity(false);
-
-            // Tự đóng minigame khi đi ra xa
-            CloseMinigame();
+            if (playerCollidersInRange.Remove(other)) UpdateNearbyState();
         }
     }
 
@@ -92,6 +108,21 @@ public class MinigameTrigger : MonoBehaviour
         if (!isPlayerNear || IsMinigameOpen) return;
 
         ToggleMinigame();
+    }
+
+    private void UpdateNearbyState()
+    {
+        bool nearby = playerCollidersInRange.Count > 0;
+        if (isPlayerNear == nearby) return;
+        isPlayerNear = nearby;
+        if (outline != null) outline.SetProximity(nearby);
+        if (!nearby && IsMinigameOpen) CloseMinigame();
+    }
+
+    private void LateUpdate()
+    {
+        if (playerCollidersInRange.RemoveWhere(c => c == null || !c.enabled || !c.gameObject.activeInHierarchy) > 0)
+            UpdateNearbyState();
     }
 
     public void ToggleMinigame()
@@ -111,7 +142,7 @@ public class MinigameTrigger : MonoBehaviour
 
     public void OpenMinigame()
     {
-        if (minigameUI == null) return;
+        if (minigameUI == null || IsMinigameOpen || IsOpeningBlocked()) return;
         lastToggleFrame = Time.frameCount;
 
         // Đóng các UI khác đang mở tránh xung đột
@@ -122,11 +153,15 @@ public class MinigameTrigger : MonoBehaviour
 
         minigameUI.SetActive(true);
         IsMinigameOpen = true;
-        IsAnyOpen = true;
+        openInstances.Add(this);
+        ViewModeController.PauseGameplayForModal();
 
         // Khoá di chuyển nhân vật & tắt joystick ảo trên Mobile khi đang chơi
         if (playerController != null)
             playerController.enabled = false;
+        if (thirdPersonCamera == null) ResolveThirdPersonCamera();
+        if (thirdPersonCamera != null)
+            thirdPersonCamera.enabled = false;
 
         MobileControlsOverlay controls = FindAnyObjectByType<MobileControlsOverlay>();
         if (controls != null)
@@ -136,24 +171,41 @@ public class MinigameTrigger : MonoBehaviour
         PlatformHelper.SetCursorLocked(false);
     }
 
+    private static bool IsOpeningBlocked()
+    {
+        SettingsManager settings = FindAnyObjectByType<SettingsManager>();
+        return (settings != null && settings.IsSettingsOpen())
+            || DoorMenuTrigger.IsAnyOpen || ExitToExteriorUI.IsAnyOpen || IsAnyOpen;
+    }
+
     public void CloseMinigame()
     {
-        if (minigameUI == null || !minigameUI.activeSelf) return;
+        openInstances.Remove(this);
         lastToggleFrame = Time.frameCount;
 
-        minigameUI.SetActive(false);
+        if (minigameUI != null && minigameUI.activeSelf)
+            minigameUI.SetActive(false);
         IsMinigameOpen = false;
-        IsAnyOpen = false;
+
+        bool anotherUIOpen = IsAnyOpen || DoorMenuTrigger.IsAnyOpen
+            || (PaintingUIManager.Instance != null && PaintingUIManager.Instance.IsPopupOpen)
+            || (DialogueUIManager.Instance != null && DialogueUIManager.Instance.IsSpeaking)
+            || ExitToExteriorUI.IsAnyOpen;
+        SettingsManager settings = FindAnyObjectByType<SettingsManager>();
+        if (settings != null && settings.IsSettingsOpen()) anotherUIOpen = true;
 
         // Mở lại di chuyển nhân vật & bật lại joystick ảo trên Mobile
         if (playerController != null)
-            playerController.enabled = true;
+            playerController.enabled = !anotherUIOpen;
+        if (thirdPersonCamera != null)
+            thirdPersonCamera.enabled = !anotherUIOpen;
 
         MobileControlsOverlay controls = FindAnyObjectByType<MobileControlsOverlay>();
         if (controls != null)
-            controls.SetGameplayInputEnabled(true);
+            controls.SetGameplayInputEnabled(!anotherUIOpen);
 
-        // Khoá chuột lại để điều khiển nhân vật
-        PlatformHelper.SetCursorLocked(true);
+        // Chỉ khóa chuột lại khi không còn UI gameplay nào đang mở.
+        if (!anotherUIOpen)
+            ViewModeController.TryResumeGameplayIfClear();
     }
 }

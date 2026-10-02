@@ -21,20 +21,41 @@ public class ColorFillMinigame : MonoBehaviour
     [Tooltip("Panel hiện ra khi tô xong tất cả các mảnh (chứa chữ 'Xuất sắc!' và nút Làm lại)")]
     public GameObject finishPanel;
 
-    // Cache màu trắng ban đầu của từng mảnh (để Reset)
-    private List<Color> originalColors = new List<Color>();
+    private readonly HashSet<Image> paintableSet = new HashSet<Image>();
+    private readonly Dictionary<Image, Color> originalColors = new Dictionary<Image, Color>();
     private int paintedCount = 0;
+    private bool initialized;
+    private bool isComplete;
+
+    private void Awake()
+    {
+        InitializeMinigame();
+    }
 
     private void Start()
     {
-        // Lưu lại màu gốc (trắng) của từng mảnh để dùng khi Reset
+        InitializeMinigame();
+    }
+
+    private void InitializeMinigame()
+    {
+        if (initialized) return;
+        initialized = true;
+        paintableSet.Clear();
         originalColors.Clear();
-        foreach (var part in paintableParts)
+        paintedCount = 0;
+        if (paintableParts != null)
         {
-            originalColors.Add(part != null ? part.color : Color.white);
+            foreach (var part in paintableParts)
+            {
+                if (part == null || !paintableSet.Add(part)) continue;
+                originalColors.Add(part, part.color);
+                if (!IsUnpainted(part.color)) paintedCount++;
+            }
         }
 
-        if (finishPanel != null) finishPanel.SetActive(false);
+        if (currentBrushIndicator != null) currentBrushIndicator.color = currentColor;
+        UpdateCompletion(playSound: false);
     }
 
     // ─────────────────────────────────────────
@@ -56,21 +77,28 @@ public class ColorFillMinigame : MonoBehaviour
     // Kéo chính Image mảnh đó vào ô Object của OnClick
     public void FillColor(Image targetImage)
     {
-        if (targetImage == null) return;
+        InitializeMinigame();
+        if (targetImage == null || !paintableSet.Contains(targetImage)) return;
 
         bool wasWhite = IsUnpainted(targetImage.color);
+        bool willBeWhite = IsUnpainted(currentColor);
+        Color previousColor = targetImage.color;
         targetImage.color = currentColor;
 
-        // Phát âm thanh tô màu
-        if (AudioManager.Instance != null && paintSound != null)
+        if (previousColor != currentColor && AudioManager.Instance != null && paintSound != null)
             AudioManager.Instance.PlaySFX(paintSound);
 
-        // Tăng đếm mảnh đã tô (chỉ tính lần đầu tô vào mảnh trắng)
-        if (wasWhite && !IsUnpainted(currentColor))
+        if (wasWhite && !willBeWhite)
         {
+            // Lần đầu tô vào mảnh trắng -> tăng đếm
             paintedCount++;
-            CheckFinish();
         }
+        else if (!wasWhite && willBeWhite)
+        {
+            paintedCount = Mathf.Max(0, paintedCount - 1);
+        }
+
+        UpdateCompletion(playSound: true);
     }
 
     // ─────────────────────────────────────────
@@ -78,29 +106,37 @@ public class ColorFillMinigame : MonoBehaviour
     // ─────────────────────────────────────────
     public void ResetPainting()
     {
-        paintedCount = 0;
+        InitializeMinigame();
 
-        for (int i = 0; i < paintableParts.Count; i++)
+        foreach (KeyValuePair<Image, Color> entry in originalColors)
         {
-            if (paintableParts[i] != null && i < originalColors.Count)
-                paintableParts[i].color = originalColors[i];
+            if (entry.Key != null) entry.Key.color = entry.Value;
         }
 
-        if (finishPanel != null) finishPanel.SetActive(false);
+        RecountPaintedParts();
+        UpdateCompletion(playSound: false);
     }
 
-    // ─────────────────────────────────────────
-    //  KIỂM TRA HOÀN THÀNH
-    // ─────────────────────────────────────────
-    private void CheckFinish()
+    private void RecountPaintedParts()
     {
-        if (paintedCount >= paintableParts.Count)
+        paintedCount = 0;
+        foreach (Image part in paintableSet)
         {
-            if (finishPanel != null) finishPanel.SetActive(true);
+            if (part != null && !IsUnpainted(part.color)) paintedCount++;
+        }
+    }
 
-            if (AudioManager.Instance != null && finishSound != null)
+    private void UpdateCompletion(bool playSound)
+    {
+        bool wasComplete = isComplete;
+        isComplete = paintableSet.Count > 0 && paintedCount >= paintableSet.Count;
+        if (finishPanel != null && finishPanel.activeSelf != isComplete)
+            finishPanel.SetActive(isComplete);
+
+        if (!wasComplete && isComplete)
+        {
+            if (playSound && AudioManager.Instance != null && finishSound != null)
                 AudioManager.Instance.PlaySFX(finishSound);
-
             Debug.Log("[ColorFill] Hoàn thành! Đã tô hết " + paintedCount + " mảnh.");
         }
     }

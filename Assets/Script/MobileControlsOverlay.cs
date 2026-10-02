@@ -17,12 +17,13 @@ public class MobileControlsOverlay : MonoBehaviour
     public static bool FloatingJoystickEnabled { get; private set; } = true;
 
     private static readonly Vector2 FixedStickAnchoredPos = new Vector2(170, 170);
-    private const float JumpZoneWidth = 300f;
-    private const float JumpZoneHeight = 320f;
+    private static MobileControlsOverlay activeOverlay;
+    private RectTransform jumpButton;
 
     private static Vector2 lookDelta;
     private static bool jumpPressed;
     private static bool gameplayInputEnabled = true;
+    public static bool IsGameplayInputEnabled => gameplayInputEnabled;
 
     // Nhúm 2 ngón trên nửa phải = zoom camera (dãn = lại gần).
     // True trong frame đang pinch để PlayerInteraction hủy tap tương tác.
@@ -73,8 +74,16 @@ public class MobileControlsOverlay : MonoBehaviour
     public static bool IsInControlZone(Vector2 screenPos)
     {
         bool inMoveZone = screenPos.x < Screen.width * 0.5f;
-        bool inJumpZone = screenPos.x >= Screen.width - JumpZoneWidth && screenPos.y <= JumpZoneHeight;
+        bool inJumpZone = IsInJumpZone(screenPos);
         return inMoveZone || inJumpZone;
+    }
+
+    public static bool IsInJumpZone(Vector2 screenPos)
+    {
+        if (activeOverlay == null || activeOverlay.jumpButton == null || !activeOverlay.jumpButton.gameObject.activeInHierarchy) return false;
+        Canvas canvas = activeOverlay.jumpButton.GetComponentInParent<Canvas>();
+        Camera camera = canvas != null && canvas.renderMode != RenderMode.ScreenSpaceOverlay ? canvas.worldCamera : null;
+        return RectTransformUtility.RectangleContainsScreenPoint(activeOverlay.jumpButton, screenPos, camera);
     }
 
     public void SetGameplayInputEnabled(bool enabled)
@@ -127,6 +136,19 @@ public class MobileControlsOverlay : MonoBehaviour
         IsAvailable = true;
     }
 
+    private void OnEnable()
+    {
+        activeOverlay = this;
+    }
+
+    private void OnDisable()
+    {
+        if (activeOverlay == this) activeOverlay = null;
+        bool previousInput = gameplayInputEnabled;
+        SetGameplayInputEnabled(false);
+        gameplayInputEnabled = previousInput;
+    }
+
     private void OnDestroy()
     {
         IsAvailable = false;
@@ -151,7 +173,7 @@ public class MobileControlsOverlay : MonoBehaviour
         for (int i = 0; i < Input.touchCount; i++)
         {
             Touch touch = Input.GetTouch(i);
-            bool isJumpArea = touch.position.x >= Screen.width - JumpZoneWidth && touch.position.y <= JumpZoneHeight;
+            bool isJumpArea = IsInJumpZone(touch.position);
 
             if (touch.phase == TouchPhase.Began)
             {
@@ -227,7 +249,7 @@ public class MobileControlsOverlay : MonoBehaviour
             Touch t = Input.GetTouch(i);
             if (t.phase == TouchPhase.Ended || t.phase == TouchPhase.Canceled) continue;
             if (t.fingerId == moveFingerId || t.fingerId == jumpFingerId) continue;
-            if (t.position.x >= Screen.width - JumpZoneWidth && t.position.y <= JumpZoneHeight) continue;
+            if (IsInJumpZone(t.position)) continue;
             if (t.position.x < halfW) continue;
 
             if (pinchIdA < 0) { pinchIdA = t.fingerId; posA = t.position; }
@@ -258,7 +280,7 @@ public class MobileControlsOverlay : MonoBehaviour
         CreateKnob();
         HideStick(); // Joystick nổi: ẩn tới khi có ngón tay chạm xuống
 
-        RectTransform jumpButton = CreatePanel("Jump Button", new Vector2(180, 180), new Vector2(1, 0), new Vector2(1, 0), new Vector2(-150, 170));
+        jumpButton = CreatePanel("Jump Button", new Vector2(180, 180), new Vector2(1, 0), new Vector2(1, 0), new Vector2(-150, 170));
         jumpButton.GetComponent<Image>().color = new Color(0.95f, 0.55f, 0.1f, 0.78f);
         CreateLabel(jumpButton, "NHẢY");
     }

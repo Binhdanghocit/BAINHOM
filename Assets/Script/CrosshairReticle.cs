@@ -36,7 +36,7 @@ public class CrosshairReticle : MonoBehaviour
     // Camera.main có thể chưa sẵn sàng ở Awake -> resolve lazy, chỉ tìm khi null
     private void ResolveAimCamera()
     {
-        if (aimCamera == null)
+        if (aimCamera == null || !aimCamera.isActiveAndEnabled)
         {
             aimCamera = Camera.main;
         }
@@ -177,50 +177,32 @@ public class CrosshairReticle : MonoBehaviour
         UpdateAimed(null);
     }
 
-    // Tia từ MÀN HÌNH tìm vật có thể tương tác đang bị nhắm.
-    // Chỉ coi là "đang nhắm" khi người chơi ĐỨNG TRONG VÙNG trigger của vật đó.
     private InteractableOutline FindAimedInteractable()
     {
         if (aimCamera == null) return null;
-
         Ray ray = aimCamera.ViewportPointToRay(new Vector3(0.5f, 0.5f, 0f));
-
-        // Trường hợp nhanh (99% frame): 1 raycast duy nhất, không allocation
-        if (!Physics.Raycast(ray, out RaycastHit hit, rayDistance, ~0, QueryTriggerInteraction.Collide))
+        RaycastHit[] hits = Physics.RaycastAll(ray, rayDistance, ~0, QueryTriggerInteraction.Collide);
+        System.Array.Sort(hits, (a, b) => a.distance.CompareTo(b.distance));
+        PlayerInteraction interaction = FindAnyObjectByType<PlayerInteraction>();
+        float targetDistance = interaction != null ? interaction.interactDistance : 3.5f;
+        foreach (RaycastHit hit in hits)
         {
-            return null;
-        }
-
-        // FIX BUG: Ở Góc 1 camera nằm TRONG lưới nhân vật -> tia đâm trúng collider của
-        // chính mình trước, khiến viền vàng không bao giờ hiện (hoặc hiện sai vật).
-        // Chỉ khi bị chặn bởi player mới phải quét bổ sung phần phía sau.
-        if (PlayerDetector.IsPlayer(hit.collider.transform))
-        {
-            return FindAimedBehindPlayer(ray, hit.collider);
-        }
-
-        var outline = hit.collider.GetComponentInParent<InteractableOutline>();
-        if (outline != null && outline.IsProximityActive)
-        {
-            return outline;
-        }
-        return null;
-    }
-
-    // Quét bổ sung khi tia bị chặn bởi collider của chính người chơi (hiếm gặp, chỉ khi FPS)
-    private InteractableOutline FindAimedBehindPlayer(Ray ray, Collider blocker)
-    {
-        RaycastHit[] hits = Physics.RaycastAll(ray, rayDistance);
-        for (int i = 0; i < hits.Length; i++)
-        {
-            // Bỏ qua collider đã chặn + mọi collider của player
-            if (hits[i].collider == blocker) continue;
-            if (PlayerDetector.IsPlayer(hits[i].collider.transform)) continue;
-
-            var outline = hits[i].collider.GetComponentInParent<InteractableOutline>();
-            if (outline != null && outline.IsProximityActive) return outline;
-            // Hit đầu tiên không phải player mà không phải interactable -> phần đằng sau bị che khuất
-            break;
+            if (PlayerDetector.IsPlayer(hit.collider)) continue;
+            NPCInteractable npc = hit.collider.GetComponentInParent<NPCInteractable>();
+            if (npc != null && !npc.IsInteractionCollider(hit.collider)) continue;
+            InteractableOutline outline = hit.collider.GetComponentInParent<InteractableOutline>();
+            DoorMenuTrigger door = hit.collider.GetComponentInParent<DoorMenuTrigger>();
+            bool interactive = door != null || hit.collider.GetComponentInParent<PaintingTrigger>() != null
+                || hit.collider.GetComponentInParent<PaintingInfo>() != null
+                || hit.collider.GetComponentInParent<NPCInteractable>() != null
+                || hit.collider.GetComponentInParent<MinigameTrigger>() != null;
+            if (interactive)
+            {
+                float distance = door != null ? door.maxInteractDistance : targetDistance;
+                return hit.distance <= distance && outline != null && outline.IsProximityActive ? outline : null;
+            }
+            // Match PlayerInteraction: volumes are skipped, solid geometry blocks sight.
+            if (!hit.collider.isTrigger) return null;
         }
         return null;
     }

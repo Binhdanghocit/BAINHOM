@@ -1,4 +1,5 @@
 using UnityEngine;
+using System.Collections.Generic;
 
 [RequireComponent(typeof(Collider))]
 [RequireComponent(typeof(InteractableOutline))]
@@ -9,25 +10,33 @@ public class NPCInteractable : MonoBehaviour
 
     [Tooltip("Các dòng hội thoại, hiện lần lượt mỗi lần bấm E")]
     public string[] dialogueLines;
+    [Tooltip("Collider thân nhân vật dùng để chọn bằng ray. Để trống giữ hành vi cũ; không chọn volume phát hiện khoảng cách.")]
+    public Collider interactionCollider;
+
+    public bool IsInteractionCollider(Collider collider) => interactionCollider == null || interactionCollider == collider;
+
+    [Header("Tùy chọn NPC hướng dẫn")]
+    [Tooltip("Chỉ gán cho hướng dẫn viên. Sau hội thoại, người chơi được chọn vào workshop hoặc tiếp tục tham quan.")]
+    public MinigameTrigger workshopTrigger;
 
     private bool isPlayerNearby = false;
     private InteractableOutline outline;
     private int lastInteractFrame = -1;
+    private readonly HashSet<Collider> playerCollidersInRange = new HashSet<Collider>();
+
+    private void Awake()
+    {
+        outline = GetComponent<InteractableOutline>();
+        DialogueUIManager.EnsureInstance();
+    }
 
     private void Start()
     {
         outline = GetComponent<InteractableOutline>();
+        UpdateNearbyState();
     }
 
-    private void Update()
-    {
-        if (!isPlayerNearby || DialogueUIManager.Instance == null) return;
 
-        bool pressed = Input.GetKeyDown(KeyCode.E) || HandTriggerInput.WasPressedThisFrame();
-        if (!pressed) return;
-
-        TriggerDialogue();
-    }
 
     public void TriggerDialogue()
     {
@@ -38,7 +47,8 @@ public class NPCInteractable : MonoBehaviour
 
         if (DialogueUIManager.Instance.IsSpeaking)
         {
-            DialogueUIManager.Instance.AdvanceLine();
+            if (DialogueUIManager.Instance.IsConversationWith(this))
+                DialogueUIManager.Instance.AdvanceLine();
         }
         else
         {
@@ -48,6 +58,8 @@ public class NPCInteractable : MonoBehaviour
 
     private static bool IsOtherUIOpen()
     {
+        var settings = Object.FindAnyObjectByType<SettingsManager>();
+        if (settings != null && settings.IsSettingsOpen()) return true;
         if (PaintingUIManager.Instance != null && PaintingUIManager.Instance.IsPopupOpen) return true;
         if (MinigameTrigger.IsAnyOpen) return true;
         if (DoorMenuTrigger.IsAnyOpen) return true;
@@ -59,8 +71,7 @@ public class NPCInteractable : MonoBehaviour
     {
         if (PlayerDetector.IsPlayer(other))
         {
-            isPlayerNearby = true;
-            if (outline != null) outline.SetProximity(true);
+            if (playerCollidersInRange.Add(other)) UpdateNearbyState();
         }
     }
 
@@ -68,14 +79,33 @@ public class NPCInteractable : MonoBehaviour
     {
         if (PlayerDetector.IsPlayer(other))
         {
-            isPlayerNearby = false;
-            if (outline != null) outline.SetProximity(false);
-
-            // Đi xa là đóng hội thoại đang mở
-            if (DialogueUIManager.Instance != null && DialogueUIManager.Instance.IsSpeaking)
-            {
-                DialogueUIManager.Instance.EndDialogue();
-            }
+            if (playerCollidersInRange.Remove(other)) UpdateNearbyState();
         }
+    }
+
+    private void OnDisable()
+    {
+        playerCollidersInRange.Clear();
+        UpdateNearbyState();
+        if (DialogueUIManager.Instance != null) DialogueUIManager.Instance.CancelDialogue(this);
+    }
+
+    private void LateUpdate()
+    {
+        if (playerCollidersInRange.RemoveWhere(collider => collider == null || !collider.enabled || !collider.gameObject.activeInHierarchy) > 0)
+            UpdateNearbyState();
+    }
+
+    private void UpdateNearbyState()
+    {
+        playerCollidersInRange.RemoveWhere(collider => collider == null);
+        bool wasNearby = isPlayerNearby;
+        isPlayerNearby = playerCollidersInRange.Count > 0;
+        if (outline != null) outline.SetProximity(isPlayerNearby);
+
+        DialogueUIManager manager = DialogueUIManager.Instance;
+        if (wasNearby == isPlayerNearby || manager == null) return;
+        // InteractableOutline owns the prompt registration for this target.
+        if (!isPlayerNearby) manager.CancelDialogue(this);
     }
 }

@@ -8,7 +8,7 @@ public class MainMenuManager : MonoBehaviour
 {
     [Header("--- Scene Configuration ---")]
     [Tooltip("Nhập chính xác tên Scene Triển lãm Tranh Đông Hồ của bạn")]
-    public string gallerySceneName = "ExhibitionScene";
+    public string gallerySceneName = "SampleScene";
 
     [Header("--- Loading Screen ---")]
     [Tooltip("Màu nền màn hình chờ")]
@@ -26,7 +26,7 @@ public class MainMenuManager : MonoBehaviour
         BuildLoadingUI();
         // Main Menu dùng Canvas Screen Space. Cầu nối này biến ray/trigger từ
         // controller VR thành PointerEvent cho chính các Button/Slider hiện có.
-        gameObject.AddComponent<VRUIInputBridge>();
+        VRUIInputBridge.EnsureInstance();
     }
 
     // Gọi khi nhấn nút Play

@@ -1,5 +1,6 @@
 using UnityEngine;
 using UnityEngine.EventSystems;
+using System.Collections.Generic;
 
 [RequireComponent(typeof(InteractableOutline))]
 public class PaintingTrigger : MonoBehaviour
@@ -8,8 +9,9 @@ public class PaintingTrigger : MonoBehaviour
     private bool isPlayerNearby = false;
     private InteractableOutline outline;
     private int lastToggleFrame = -1;
+    private readonly HashSet<Collider> playerCollidersInRange = new HashSet<Collider>();
 
-    private void Start()
+    private void Awake()
     {
         // Tự động lấy component PaintingInfo nằm trên cùng GameObject bức tranh này
         paintingInfo = GetComponent<PaintingInfo>();
@@ -23,33 +25,12 @@ public class PaintingTrigger : MonoBehaviour
         outline = GetComponent<InteractableOutline>();
     }
 
-    private void Update()
-    {
-        // Bấm phím E hoặc trigger tay VR:
-        // - Nếu đang mở bảng thông tin -> đóng (bấm lần nữa để thoát)
-        // - Nếu chưa mở -> mở bảng thông tin
-        if (!isPlayerNearby) return;
 
-        bool pressed = Input.GetKeyDown(KeyCode.E) || HandTriggerInput.WasPressedThisFrame();
-        if (!pressed) return;
-
-        // FIX double-activation (bug trigger VR): khi popup tranh ĐANG MỞ thì
-        // nút này chỉ dùng để ĐÓNG popup, không mở cái mới; và không cạnh tranh
-        // với các trigger khác (hội thoại NPC...) đang xử lý cùng frame.
-        if (PaintingUIManager.Instance != null && PaintingUIManager.Instance.IsPopupOpen)
-        {
-            lastToggleFrame = Time.frameCount;
-            PaintingUIManager.Instance.ClosePopup();
-            return;
-        }
-
-        if (IsOtherUIOpen()) return;
-
-        ToggleInteract();
-    }
 
     private static bool IsOtherUIOpen()
     {
+        var settings = Object.FindAnyObjectByType<SettingsManager>();
+        if (settings != null && settings.IsSettingsOpen()) return true;
         if (DialogueUIManager.Instance != null && DialogueUIManager.Instance.IsSpeaking) return true;
         if (MinigameTrigger.IsAnyOpen) return true;
         if (DoorMenuTrigger.IsAnyOpen) return true;
@@ -61,8 +42,7 @@ public class PaintingTrigger : MonoBehaviour
     {
         if (PlayerDetector.IsPlayer(other))
         {
-            isPlayerNearby = true;
-            if (outline != null) outline.SetProximity(true);
+            if (playerCollidersInRange.Add(other)) UpdateNearbyState();
         }
     }
 
@@ -70,14 +50,7 @@ public class PaintingTrigger : MonoBehaviour
     {
         if (PlayerDetector.IsPlayer(other))
         {
-            isPlayerNearby = false;
-            if (outline != null) outline.SetProximity(false);
-
-            // Tự động đóng Popup qua Manager khi đi xa
-            if (PaintingUIManager.Instance != null && PaintingUIManager.Instance.IsPopupOpen)
-            {
-                PaintingUIManager.Instance.ClosePopup();
-            }
+            if (playerCollidersInRange.Remove(other)) UpdateNearbyState();
         }
     }
 
@@ -95,6 +68,7 @@ public class PaintingTrigger : MonoBehaviour
 
     public void ToggleInteract()
     {
+        if (IsOtherUIOpen()) return;
         // Chống double-toggle trong cùng 1 frame (do OnMouseDown + PlayerInteraction cùng bắt click)
         if (lastToggleFrame == Time.frameCount) return;
         lastToggleFrame = Time.frameCount;
@@ -118,5 +92,27 @@ public class PaintingTrigger : MonoBehaviour
         {
             AudioManager.Instance.PlaySFX(AudioManager.Instance.inspectClip);
         }
+    }
+
+    private void UpdateNearbyState()
+    {
+        bool nearby = playerCollidersInRange.Count > 0;
+        if (nearby == isPlayerNearby) return;
+        isPlayerNearby = nearby;
+        if (outline != null) outline.SetProximity(nearby);
+        if (!nearby && PaintingUIManager.Instance != null && PaintingUIManager.Instance.IsShowingPainting(paintingInfo))
+            PaintingUIManager.Instance.ClosePopup();
+    }
+
+    private void LateUpdate()
+    {
+        if (playerCollidersInRange.RemoveWhere(c => c == null || !c.enabled || !c.gameObject.activeInHierarchy) > 0)
+            UpdateNearbyState();
+    }
+
+    private void OnDisable()
+    {
+        playerCollidersInRange.Clear();
+        UpdateNearbyState();
     }
 }

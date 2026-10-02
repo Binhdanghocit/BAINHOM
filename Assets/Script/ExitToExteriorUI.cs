@@ -7,8 +7,8 @@ using System.Collections;
 public class ExitToExteriorUI : MonoBehaviour
 {
     [Header("Tên Scene")]
-    [Tooltip("Nhập đúng tên Scene ngoại cảnh (phải có trong Build Settings)")]
-    public string exteriorSceneName = "ExteriorScene";
+    [Tooltip("Sảnh chờ = MainMenu (phải có trong Build Settings)")]
+    public string exteriorSceneName = "MainMenu";
 
     [Header("Phím tắt")]
     [Tooltip("Phím mở/đóng dialog xác nhận thoát (mặc định ESC)")]
@@ -84,6 +84,7 @@ public class ExitToExteriorUI : MonoBehaviour
         isDialogOpen = true;
         IsAnyOpen = true;
         dialogRoot.SetActive(true);
+        ViewModeController.PauseGameplayForModal();
 
         MobileControlsOverlay controls = FindAnyObjectByType<MobileControlsOverlay>();
         if (controls != null) controls.SetGameplayInputEnabled(false);
@@ -98,10 +99,8 @@ public class ExitToExteriorUI : MonoBehaviour
         IsAnyOpen = false;
         dialogRoot.SetActive(false);
 
-        MobileControlsOverlay controls = FindAnyObjectByType<MobileControlsOverlay>();
-        if (controls != null) controls.SetGameplayInputEnabled(true);
-
-        PlatformHelper.SetCursorLocked(true);  // Khóa lại chuột để điều khiển nhân vật
+        // Chỉ khôi phục input/cursor khi không còn modal nào khác đang mở.
+        ViewModeController.TryResumeGameplayIfClear();
     }
 
     // ─────────────────────────────────────────
@@ -110,7 +109,7 @@ public class ExitToExteriorUI : MonoBehaviour
     private IEnumerator LoadExteriorAsync()
     {
         isLoading = true;
-        IsAnyOpen = false;
+        CloseDialog();
 
         // Kiểm tra scene có trong Build Settings không
         if (!Application.CanStreamedLevelBeLoaded(exteriorSceneName))
@@ -189,7 +188,7 @@ public class ExitToExteriorUI : MonoBehaviour
         var box = new GameObject("DialogBox");
         box.transform.SetParent(canvasGo.transform, false);
         var boxImg = box.AddComponent<Image>();
-        boxImg.color = new Color(0.1f, 0.1f, 0.15f, 0.97f);
+        boxImg.color = UiTheme.PanelBg;
         var boxRt = box.GetComponent<RectTransform>();
         boxRt.anchorMin = new Vector2(0.5f, 0.5f);
         boxRt.anchorMax = new Vector2(0.5f, 0.5f);
@@ -199,7 +198,7 @@ public class ExitToExteriorUI : MonoBehaviour
         var icon = new GameObject("Icon");
         icon.transform.SetParent(box.transform, false);
         var iconTxt = icon.AddComponent<TextMeshProUGUI>();
-        iconTxt.text = "🚪";
+        iconTxt.text = "";
         iconTxt.fontSize = 52;
         iconTxt.alignment = TextAlignmentOptions.Center;
         var iconRt = iconTxt.rectTransform;
@@ -229,7 +228,7 @@ public class ExitToExteriorUI : MonoBehaviour
         var descTxt = desc.AddComponent<TextMeshProUGUI>();
         descTxt.text = "Bạn có muốn quay lại sảnh chờ bên ngoài không?";
         descTxt.fontSize = 24;
-        descTxt.color = new Color(0.8f, 0.8f, 0.8f, 1f);
+        descTxt.color = UiTheme.SubGray;
         descTxt.alignment = TextAlignmentOptions.Center;
         descTxt.textWrappingMode = TextWrappingModes.Normal;
         var descRt = descTxt.rectTransform;
@@ -240,18 +239,18 @@ public class ExitToExteriorUI : MonoBehaviour
 
         // Nút "Quay Lại Ngoài" (màu đỏ cam)
         CreateButton(box.transform,
-            text: "🚪  Quay Lại Ngoài",
+            text: "Quay Lại Ngoài",
             anchoredPos: new Vector2(-155f, -235f),
             size: new Vector2(270f, 58f),
-            normalColor: new Color(0.82f, 0.25f, 0.18f, 1f),
+            normalColor: UiTheme.BtnDanger,
             onClick: GoBackOutside);
 
         // Nút "Ở Lại" (màu xanh lá)
         CreateButton(box.transform,
-            text: "✅  Ở Lại",
+            text: "Ở Lại",
             anchoredPos: new Vector2(155f, -235f),
             size: new Vector2(270f, 58f),
-            normalColor: new Color(0.18f, 0.6f, 0.25f, 1f),
+            normalColor: UiTheme.BtnConfirm,
             onClick: StayHere);
 
         dialogRoot = canvasGo;
@@ -268,11 +267,7 @@ public class ExitToExteriorUI : MonoBehaviour
         img.color = normalColor;
 
         var btn = btnGo.AddComponent<Button>();
-        var colors = btn.colors;
-        colors.normalColor = normalColor;
-        colors.highlightedColor = normalColor * 1.2f;
-        colors.pressedColor = normalColor * 0.8f;
-        btn.colors = colors;
+        UiTheme.ApplyButton(btn, normalColor);
         btn.onClick.AddListener(onClick);
 
         var rt = btnGo.GetComponent<RectTransform>();
@@ -335,7 +330,7 @@ public class ExitToExteriorUI : MonoBehaviour
         var labelGo = new GameObject("Label");
         labelGo.transform.SetParent(btnGo.transform, false);
         var lbl = labelGo.AddComponent<TextMeshProUGUI>();
-        lbl.text = "☰ Menu";
+        lbl.text = "Menu";
         lbl.fontSize = 26;
         lbl.fontStyle = FontStyles.Bold;
         lbl.color = Color.white;

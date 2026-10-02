@@ -44,10 +44,7 @@ public class SettingsManager : MonoBehaviour
     {
         // Gallery không gắn sẵn bridge như menu: tự gắn để controller VR bấm/kéo
         // được UI Settings. Bridge tự ngắt khi không chạy XR nên gắn thường trực an toàn.
-        if (GetComponent<VRUIInputBridge>() == null)
-        {
-            gameObject.AddComponent<VRUIInputBridge>();
-        }
+        VRUIInputBridge.EnsureInstance();
     }
 
     private void Start()
@@ -182,6 +179,7 @@ public class SettingsManager : MonoBehaviour
         if (settingsPanel != null)
         {
             settingsPanel.SetActive(true);
+            ViewModeController.PauseGameplayForModal();
             MobileControlsOverlay controls = FindAnyObjectByType<MobileControlsOverlay>();
             if (controls != null) controls.SetGameplayInputEnabled(false);
             Cursor.lockState = CursorLockMode.None;
@@ -200,10 +198,9 @@ public class SettingsManager : MonoBehaviour
         if (settingsPanel != null)
         {
             settingsPanel.SetActive(false);
-            MobileControlsOverlay controls = FindAnyObjectByType<MobileControlsOverlay>();
-            if (controls != null) controls.SetGameplayInputEnabled(true);
 
-            // Hiện lại tâm ngắm khi đóng Settings
+            // Hiện lại tâm ngắm khi đóng Settings (tâm tự ẩn khi UI khác còn mở,
+            // nên luôn xả cờ force-hidden ở đây là an toàn).
             if (crosshair != null)
             {
                 crosshair.SetForceHidden(false);
@@ -216,8 +213,11 @@ public class SettingsManager : MonoBehaviour
             }
             else
             {
-                // Về game: PC khóa lại chuột, điện thoại giữ nguyên cảm ứng
-                PlatformHelper.SetCursorLocked(true);
+                // FIX kẹt input: chỉ khôi phục mobile/cursor khi KHÔNG còn modal nào
+                // (menu cửa, workshop, popup tranh, hội thoại...). Đóng Settings trong
+                // lúc workshop/menu cửa còn mở mà bật lại input + khóa chuột sẽ làm
+                // người chơi không bấm được nút modal đang mở.
+                ViewModeController.TryResumeGameplayIfClear();
             }
         }
     }
@@ -267,9 +267,9 @@ public class SettingsManager : MonoBehaviour
 
     private void OnMasterVolumeChanged(float value)
     {
-        AudioListener.volume = value; // Chỉnh âm lượng tổng hệ thống
         if (AudioManager.Instance != null)
             AudioManager.Instance.SetMasterVolume(value);
+        else AudioListener.volume = Mathf.Clamp01(value);
     }
 
     private void OnBGMVolumeChanged(float value)
@@ -464,6 +464,10 @@ public class SettingsManager : MonoBehaviour
     public void GoToMainMenu()
     {
         Time.timeScale = 1f;
+
+        // Ngắt thuyết minh tranh (AudioManager sống xuyên scene).
+        if (AudioManager.Instance != null)
+            AudioManager.Instance.StopVoiceover();
 
         MobileControlsOverlay controls = FindAnyObjectByType<MobileControlsOverlay>();
         if (controls != null) controls.SetGameplayInputEnabled(true);

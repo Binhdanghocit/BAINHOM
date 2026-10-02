@@ -15,6 +15,9 @@ public class PaintingUIManager : MonoBehaviour
 
     // Cho biết popup có đang mở hay không (để bấm E lần nữa đóng)
     public bool IsPopupOpen { get; private set; }
+    public PaintingInfo CurrentPainting { get; private set; }
+
+    public bool IsShowingPainting(PaintingInfo info) => IsPopupOpen && info != null && CurrentPainting == info;
 
     private Button clickBlocker; // Vùng trong suốt phủ màn hình để click bên ngoài là thoát
 
@@ -24,10 +27,7 @@ public class PaintingUIManager : MonoBehaviour
         if (Instance == null)
         {
             Instance = this;
-            if (GetComponent<VRUIInputBridge>() == null)
-            {
-                gameObject.AddComponent<VRUIInputBridge>();
-            }
+            VRUIInputBridge.EnsureInstance();
         }
         else
         {
@@ -61,6 +61,8 @@ public class PaintingUIManager : MonoBehaviour
 
         popupPanel.SetActive(true); // Hiện bảng UI
         IsPopupOpen = true;
+        CurrentPainting = info;
+        ViewModeController.PauseGameplayForModal();
 
         if (clickBlocker != null)
         {
@@ -88,6 +90,7 @@ public class PaintingUIManager : MonoBehaviour
 
         popupPanel.SetActive(false); // Ẩn bảng UI
         IsPopupOpen = false;
+        CurrentPainting = null;
 
         if (clickBlocker != null)
         {
@@ -100,12 +103,10 @@ public class PaintingUIManager : MonoBehaviour
             AudioManager.Instance.StopVoiceover();
         }
 
-        // Bật lại joystick ảo trên điện thoại
-        MobileControlsOverlay controls = FindAnyObjectByType<MobileControlsOverlay>();
-        if (controls != null) controls.SetGameplayInputEnabled(true);
-
-        // Khóa lại con trỏ chuột để điều khiển nhân vật tiếp (PC only)
-        PlatformHelper.SetCursorLocked(true);
+        // Bật lại joystick ảo trên điện thoại + khóa chuột CHỈ khi không còn modal
+        // nào khác (menu cửa, workshop, settings, hội thoại...). Khôi phục vô điều
+        // kiện ở đây sẽ mở input trong lúc modal khác còn che màn hình.
+        ViewModeController.TryResumeGameplayIfClear();
     }
 
     // Tự tạo vùng trong suốt phủ kín màn hình, nằm DƯỚI popupPanel.
@@ -133,5 +134,10 @@ public class PaintingUIManager : MonoBehaviour
         // Đẩy xuống dưới cùng để popup nằm trên, không bị che
         blockerObj.transform.SetAsFirstSibling();
         blockerObj.SetActive(false);
+    }
+
+    private void OnDestroy()
+    {
+        if (Instance == this) Instance = null;
     }
 }

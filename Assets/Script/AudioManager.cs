@@ -17,9 +17,13 @@ public class AudioManager : MonoBehaviour
     public AudioClip jumpClip;
     public AudioClip inspectClip;
 
-    private float masterVolume = 1.0f;
     private float bgmVolume = 1.0f;
     private float sfxVolume = 1.0f;
+
+    // Chỉ tự phát BGM 1 lần duy nhất mỗi lần mở app. Không có cờ này, bản
+    // duplicate ở scene gallery sẽ Start() và phát lại track 0 từ đầu mỗi
+    // lần về menu rồi vào lại (BGM restart).
+    private static bool bgmAutoStarted = false;
 
     private void Awake()
     {
@@ -46,11 +50,23 @@ public class AudioManager : MonoBehaviour
 
     private void Start()
     {
-        // Tự động phát bài BGM đầu tiên (phần tử số 0) khi game vừa chạy
-        if (bgmClips != null && bgmClips.Length > 0)
+        // Tự động phát bài BGM đầu tiên (phần tử số 0) khi game vừa chạy.
+        // Guard: nếu nhạc đang phát rồi (về menu rồi vào lại gallery) thì giữ
+        // nguyên, không restart từ đầu.
+        if (bgmAutoStarted) return;
+        if (bgmSource != null && bgmSource.isPlaying)
         {
-            ChangeBGM(0);
+            bgmAutoStarted = true;
+            return;
         }
+
+        // Keep retrying on a later AudioManager if this scene has no usable
+        // track/source. A missing clip must not consume the one-time startup.
+        if (bgmSource == null || bgmClips == null || bgmClips.Length == 0 || bgmClips[0] == null)
+            return;
+
+        ChangeBGM(0);
+        if (bgmSource.isPlaying) bgmAutoStarted = true;
     }
 
     // --- CÁC HÀM PHÁT ÂM THANH ---
@@ -58,7 +74,7 @@ public class AudioManager : MonoBehaviour
     {
         if (clip != null && sfxSource != null)
         {
-            sfxSource.PlayOneShot(clip, sfxVolume * masterVolume);
+            sfxSource.PlayOneShot(clip);
         }
     }
 
@@ -73,7 +89,7 @@ public class AudioManager : MonoBehaviour
         if (clip != null)
         {
             voiceSource.clip = clip;
-            voiceSource.volume = masterVolume;
+            voiceSource.volume = 1f;
             voiceSource.Play();
         }
     }
@@ -95,7 +111,7 @@ public class AudioManager : MonoBehaviour
             {
                 bgmSource.clip = bgmClips[index];
                 bgmSource.loop = true;
-                bgmSource.volume = bgmVolume * masterVolume;
+                bgmSource.volume = bgmVolume;
                 bgmSource.Play();
             }
         }
@@ -104,19 +120,19 @@ public class AudioManager : MonoBehaviour
     // --- CÁC HÀM ĐIỀU CHỈNH ÂM LƯỢNG ---
     public void SetMasterVolume(float value)
     {
-        masterVolume = value;
-        UpdateVolumes();
+        // Global gain is applied once, including AudioSources outside this manager.
+        AudioListener.volume = Mathf.Clamp01(value);
     }
 
     public void SetBGMVolume(float value)
     {
-        bgmVolume = value;
+        bgmVolume = Mathf.Clamp01(value);
         UpdateVolumes();
     }
 
     public void SetSFXVolume(float value)
     {
-        sfxVolume = value;
+        sfxVolume = Mathf.Clamp01(value);
         UpdateVolumes();
     }
 
@@ -124,11 +140,12 @@ public class AudioManager : MonoBehaviour
     {
         if (bgmSource != null)
         {
-            bgmSource.volume = bgmVolume * masterVolume;
+            bgmSource.volume = bgmVolume;
         }
         if (voiceSource != null)
         {
-            voiceSource.volume = masterVolume;
+            voiceSource.volume = 1f;
         }
+        if (sfxSource != null) sfxSource.volume = sfxVolume;
     }
 }

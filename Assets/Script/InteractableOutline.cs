@@ -1,4 +1,5 @@
 using UnityEngine;
+using System.Collections.Generic;
 
 [RequireComponent(typeof(Collider))]
 public class InteractableOutline : MonoBehaviour
@@ -21,8 +22,11 @@ public class InteractableOutline : MonoBehaviour
     // aimed     = tâm ngắm (crosshair) đang chỉ vào vật
     private bool proximity;
     private bool aimed;
+    private readonly HashSet<Collider> playerCollidersInRange = new HashSet<Collider>();
     private bool applied;
     private bool lineShown; // Trạng thái thực tế của LineRenderer ( tách riêng để xử lý drawOutline đổi lúc runtime )
+    private DialogueUIManager registeredPromptManager;
+    private bool promptRegistered;
 
     public bool IsHighlightActive => proximity || aimed;
 
@@ -60,7 +64,8 @@ public class InteractableOutline : MonoBehaviour
     {
         if (PlayerDetector.IsPlayer(other))
         {
-            SetProximity(true);
+            playerCollidersInRange.Add(other);
+            SetProximity(playerCollidersInRange.Count > 0);
         }
     }
 
@@ -68,12 +73,16 @@ public class InteractableOutline : MonoBehaviour
     {
         if (PlayerDetector.IsPlayer(other))
         {
-            SetProximity(false);
+            playerCollidersInRange.Remove(other);
+            SetProximity(playerCollidersInRange.Count > 0);
         }
     }
 
     private void Update()
     {
+        if (playerCollidersInRange.RemoveWhere(c => c == null || !c.enabled || !c.gameObject.activeInHierarchy) > 0)
+            SetProximity(playerCollidersInRange.Count > 0);
+        SyncPrompt();
         if (!IsHighlightActive || line == null || !line.enabled) return;
 
         Color c = outlineColor;
@@ -101,11 +110,8 @@ public class InteractableOutline : MonoBehaviour
                 DrawOutline();
             }
 
-            if (DialogueUIManager.Instance != null)
-            {
-                DialogueUIManager.Instance.RequestPrompt(active);
-            }
         }
+        SyncPrompt();
 
         if (shouldShow != lineShown && line != null)
         {
@@ -169,5 +175,28 @@ public class InteractableOutline : MonoBehaviour
             Gizmos.matrix = transform.localToWorldMatrix;
             Gizmos.DrawWireCube(boxCol.center, boxCol.size);
         }
+    }
+
+    private void SyncPrompt()
+    {
+        DialogueUIManager manager = DialogueUIManager.Instance;
+        if (registeredPromptManager != manager)
+        {
+            if (promptRegistered && registeredPromptManager != null) registeredPromptManager.RequestPrompt(false);
+            registeredPromptManager = manager;
+            promptRegistered = false;
+        }
+        bool shouldRegister = isActiveAndEnabled && IsHighlightActive;
+        if (manager == null || promptRegistered == shouldRegister) return;
+        manager.RequestPrompt(shouldRegister);
+        promptRegistered = shouldRegister;
+    }
+
+    private void OnDisable()
+    {
+        playerCollidersInRange.Clear();
+        SetProximity(false);
+        SetAimed(false);
+        SyncPrompt();
     }
 }

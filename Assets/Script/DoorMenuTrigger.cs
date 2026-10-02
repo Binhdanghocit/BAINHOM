@@ -2,6 +2,7 @@ using UnityEngine;
 using UnityEngine.UI;
 using UnityEngine.EventSystems;
 using UnityEngine.SceneManagement;
+using System.Collections.Generic;
 
 /// <summary>
 /// Gắn vào Cánh Cửa trong phòng triển lãm.
@@ -28,25 +29,55 @@ public class DoorMenuTrigger : MonoBehaviour
     [Header("Khóa di chuyển khi chơi Minigame")]
     [Tooltip("Kéo Player vào đây để khóa di chuyển lúc đang tô màu (để trống sẽ tự tìm)")]
     public MonoBehaviour playerController;
+    private ThirdPersonCamera thirdPersonCamera;
 
-    // Cho phép các hệ thống khác (Crosshair, MobileControls, PlayerInteraction) biết UI cửa đang mở
-    public static bool IsAnyOpen { get; private set; }
+    // Cho phép các hệ thống khác (Crosshair, MobileControls, PlayerInteraction) biết UI cửa đang mở.
+    // FIX kẹt input: track theo PANEL đang bật, không theo instance. Hai DoorMenuTrigger
+    // (cua + Glass Door.004) dùng chung một Panel_DoorMenu: mở bằng instance này rồi đóng
+    // bằng instance kia (nút StayInGallery gắn cứng vào cua) vẫn dọn đúng một cờ duy nhất.
+    // Track theo instance trước đây để lại cờ của instance còn lại -> IsAnyOpen kẹt true
+    // vĩnh viễn -> TryResumeGameplayIfClear luôn false -> cursor mở, mobile tắt, mọi
+    // raycast tương tác bị chặn và cửa không mở lại được.
+    private static readonly System.Collections.Generic.HashSet<GameObject> openPanels =
+        new System.Collections.Generic.HashSet<GameObject>();
+    private static readonly HashSet<DoorMenuTrigger> activeInstances = new HashSet<DoorMenuTrigger>();
+    public static bool IsAnyOpen => openPanels.Count > 0;
 
     public bool IsOpen =>
         (doorMenuUI != null && doorMenuUI.activeSelf) ||
         (minigameUI != null && minigameUI.activeSelf);
 
     private bool isPlayerNear = false;
+    private readonly HashSet<Collider> playerCollidersInRange = new HashSet<Collider>();
     private InteractableOutline outline;
     private int lastToggleFrame = -1;
+    private int lastInputFrame = -1;
+
+    // BUG 2 fix: theo dõi minigame mở qua cửa để đồng bộ cờ MinigameTrigger.
+    // borrowedTable = mượn MinigameTrigger ở bàn vẽ (cùng panel) -> ủy thác Open/Close.
+    // externalMinigameOpen = panel riêng của cửa -> tự đăng ký cờ external.
+    private MinigameTrigger borrowedTable;
+    private bool externalMinigameOpen;
+
+    private void OnEnable()
+    {
+        activeInstances.Add(this);
+    }
+
+    public static float GetRaycastDistance(float minimumDistance)
+    {
+        float result = minimumDistance;
+        foreach (DoorMenuTrigger door in activeInstances)
+        {
+            if (door != null) result = Mathf.Max(result, door.maxInteractDistance);
+        }
+        return result;
+    }
 
     private void Awake()
     {
         // Đảm bảo tay cầm VR bấm được UI Menu Cửa / Minigame
-        if (GetComponent<VRUIInputBridge>() == null)
-        {
-            gameObject.AddComponent<VRUIInputBridge>();
-        }
+        VRUIInputBridge.EnsureInstance();
 
         // Tự động gắn relay chuyển tiếp click từ tất cả các mesh con (như Glass Door.004) lên cánh cửa chính
         Collider[] childColliders = GetComponentsInChildren<Collider>(true);
@@ -67,6 +98,7 @@ public class DoorMenuTrigger : MonoBehaviour
         {
             playerController = FindAnyObjectByType<PlayerController>();
         }
+        ResolveThirdPersonCamera();
 
         ResolveDoorMenuUI();
 
@@ -116,62 +148,82 @@ public class DoorMenuTrigger : MonoBehaviour
         foreach (var b in buttons)
         {
             string n = b.gameObject.name.ToLower();
-            if (n.Contains("minigame"))
+            if (n.Contains("minigame") || n.Contains("workshop"))
             {
-                b.onClick.RemoveListener(OpenMinigame);
-                b.onClick.AddListener(OpenMinigame);
+                WireRuntimeListenerIfNeeded(b, OpenMinigame, nameof(OpenMinigame));
             }
-            else if (n.Contains("lai") || n.Contains("stay") || n.Contains("o_lai"))
+            else if (n.Equals("btn_o_lai") || n.Contains("o_lai") || n.Contains("stay") || n.Contains("o lai"))
             {
-                b.onClick.RemoveListener(StayInGallery);
-                b.onClick.AddListener(StayInGallery);
+                WireRuntimeListenerIfNeeded(b, StayInGallery, nameof(StayInGallery));
             }
-            else if (n.Contains("thoat") || n.Contains("menu") || n.Contains("quit") || n.Contains("exit"))
+            else if (n.Contains("thoat") || n.Contains("quit") || n.Contains("exit"))
             {
-                b.onClick.RemoveListener(GoToMainMenu);
-                b.onClick.AddListener(GoToMainMenu);
+                b.onClick.RemoveListener(ExitGame);
+                WireRuntimeListenerIfNeeded(b, ExitGame, nameof(ExitGame));
+            }
+            else if (n.Contains("menu"))
+            {
+                WireRuntimeListenerIfNeeded(b, GoToMainMenu, nameof(GoToMainMenu));
             }
         }
     }
+
+    private void WireRuntimeListenerIfNeeded(Button button, UnityEngine.Events.UnityAction action, string methodName)
+    {
+        // Keep scene-authored callbacks as the source of truth. A second door
+        // component may resolve the same shared panel, so method-only matching
+        // prevents it from adding a duplicate callback.
+        for (int i = 0; i < button.onClick.GetPersistentEventCount(); i++)
+        {
+            if (button.onClick.GetPersistentMethodName(i) == methodName
+                || button.onClick.GetPersistentTarget(i) is DoorMenuTrigger)
+                return;
+        }
+        if (!runtimeWiredButtons.Add(button)) return;
+        button.onClick.AddListener(action);
+    }
+
+    private static readonly HashSet<Button> runtimeWiredButtons = new HashSet<Button>();
 
     private void OnDisable()
     {
-        IsAnyOpen = false;
-        if (playerController != null) playerController.enabled = true;
+        activeInstances.Remove(this);
+        TrackPanel(doorMenuUI, false);
+        TrackPanel(minigameUI, false);
+        playerCollidersInRange.Clear();
+        UpdateProximityState();
+        if (borrowedTable != null)
+        {
+            borrowedTable.CloseMinigame();
+            borrowedTable = null;
+        }
+        else if (minigameUI != null)
+        {
+            minigameUI.SetActive(false);
+        }
+        if (doorMenuUI != null) doorMenuUI.SetActive(false);
+        if (externalMinigameOpen)
+        {
+            MinigameTrigger.SetExternalOpen(false);
+            externalMinigameOpen = false;
+        }
+        SyncOpenState();
+        ViewModeController.TryResumeGameplayIfClear();
     }
 
-    private void Update()
+
+
+    private void ResolveThirdPersonCamera()
     {
-        bool inRange = IsPlayerInRange();
-
-        // Cập nhật viền vàng outline khi player đứng gần
-        if (outline != null && outline.IsProximityActive != inRange)
-        {
-            outline.SetProximity(inRange);
-        }
-
-        if (!inRange) return;
-
-        // Bấm E hoặc trigger VR để tương tác với cánh cửa
-        if (Input.GetKeyDown(KeyCode.E) || HandTriggerInput.WasPressedThisFrame())
-        {
-            // Nếu đang mở Minigame -> bấm E sẽ đóng Minigame và quay lại triển lãm
-            if (minigameUI != null && minigameUI.activeSelf)
-            {
-                CloseMinigame();
-                return;
-            }
-
-            Debug.Log("[DoorMenuTrigger] Đã nhấn phím E / Trigger VR tại Cánh Cửa!");
-            ToggleDoorMenu();
-        }
+        if (playerController is PlayerController controller && controller.cameraTransform != null)
+            thirdPersonCamera = controller.cameraTransform.GetComponent<ThirdPersonCamera>();
+        if (thirdPersonCamera == null && Camera.main != null)
+            thirdPersonCamera = Camera.main.GetComponent<ThirdPersonCamera>();
     }
 
     public bool IsPlayerInRange()
     {
-        if (isPlayerNear) return true;
-
-        // Kiểm tra khoảng cách thực tế giữa người chơi (hoặc Camera chính) và cánh cửa
+        // Prompt trigger không được nới lỏng giới hạn khoảng cách tương tác.
         Camera cam = Camera.main;
         if (cam != null && Vector3.Distance(transform.position, cam.transform.position) <= maxInteractDistance)
         {
@@ -190,8 +242,8 @@ public class DoorMenuTrigger : MonoBehaviour
     {
         if (PlayerDetector.IsPlayer(other))
         {
-            isPlayerNear = true;
-            if (outline != null) outline.SetProximity(true);
+            playerCollidersInRange.Add(other);
+            UpdateProximityState();
         }
     }
 
@@ -199,16 +251,31 @@ public class DoorMenuTrigger : MonoBehaviour
     {
         if (PlayerDetector.IsPlayer(other))
         {
-            isPlayerNear = false;
-            if (outline != null) outline.SetProximity(false);
+            playerCollidersInRange.Remove(other);
+            UpdateProximityState();
 
-            // Đi xa thì tự đóng cả Menu Cửa lẫn Minigame (nếu đang mở)
+            // A collider exit only ends proximity after the last player collider leaves.
+            if (isPlayerNear) return;
+
+            // BUG 9 fix: chỉ đóng menu cửa, GIỮ minigame (giữ progress tô màu).
+            // Minigame chỉ đóng khi bấm nút X / CloseMinigame().
             if (doorMenuUI != null) doorMenuUI.SetActive(false);
-            if (minigameUI != null) minigameUI.SetActive(false);
             SyncOpenState();
-            if (playerController != null) playerController.enabled = true;
-            PlatformHelper.SetCursorLocked(true); // Khóa lại chuột
+
+            // Minigame còn mở -> giữ khóa di chuyển + chuột mở để chơi tiếp.
+            bool minigameStillOpen = minigameUI != null && minigameUI.activeSelf;
+            if (!minigameStillOpen)
+            {
+                ViewModeController.TryResumeGameplayIfClear();
+            }
         }
+    }
+
+    private void UpdateProximityState()
+    {
+        playerCollidersInRange.RemoveWhere(collider => collider == null);
+        isPlayerNear = playerCollidersInRange.Count > 0;
+        if (outline != null) outline.SetProximity(isPlayerNear);
     }
 
     private void OnMouseDown()
@@ -225,23 +292,64 @@ public class DoorMenuTrigger : MonoBehaviour
     {
         // Không nhận click xuyên qua các bảng UI đang mở
         if (EventSystem.current != null && EventSystem.current.IsPointerOverGameObject()) return;
-        if (IsOpen) return;
+        Camera cam = Camera.main;
+        if (cam != null)
+            TryInteractFromRay(cam.ScreenPointToRay(Input.mousePosition));
+    }
 
-        if (IsPlayerInRange())
+    public bool TryInteractFromRay(Ray ray)
+    {
+        if (lastInputFrame == Time.frameCount) return true;
+        RaycastHit[] hits = Physics.RaycastAll(ray, maxInteractDistance, ~0, QueryTriggerInteraction.Collide);
+        System.Array.Sort(hits, (a, b) => a.distance.CompareTo(b.distance));
+
+        foreach (RaycastHit hit in hits)
         {
-            Debug.Log("[DoorMenuTrigger] Click chuột trực tiếp vào Cánh Cửa!");
-            ToggleDoorMenu();
+            Transform hitTransform = hit.collider.transform;
+            if (PlayerDetector.IsPlayer(hit.collider))
+                continue;
+
+            DoorMenuTrigger hitDoor = hitTransform.GetComponent<DoorMenuTrigger>();
+            if (hitDoor == null) hitDoor = hitTransform.GetComponentInParent<DoorMenuTrigger>();
+            if (hitDoor != null)
+            {
+                if (hitDoor != this || hit.distance > maxInteractDistance) return false;
+                if (!IsOpen && IsBlockingUIOpen()) return false;
+                lastInputFrame = Time.frameCount;
+                if (minigameUI != null && minigameUI.activeSelf) CloseMinigame();
+                else ToggleDoorMenu();
+                return true;
+            }
+
+            // Triggers without an interactable are volumes, not line-of-sight blockers.
+            if (!hit.collider.isTrigger) return false;
         }
-        else
-        {
-            Debug.LogWarning("[DoorMenuTrigger] Bạn đang đứng quá xa Cánh Cửa (hãy đi lại gần hơn)!");
-        }
+        return false;
+    }
+
+    private static bool IsBlockingUIOpen()
+    {
+        if (IsAnyOpen) return true;
+        if (PaintingUIManager.Instance != null && PaintingUIManager.Instance.IsPopupOpen) return true;
+        if (DialogueUIManager.Instance != null && DialogueUIManager.Instance.IsSpeaking) return true;
+        if (MinigameTrigger.IsAnyOpen) return true;
+        if (ExitToExteriorUI.IsAnyOpen) return true;
+        SettingsManager settings = FindAnyObjectByType<SettingsManager>();
+        return settings != null && settings.IsSettingsOpen();
     }
 
     public void ToggleDoorMenu()
     {
         // Chống double-toggle trong cùng 1 frame
         if (lastToggleFrame == Time.frameCount) return;
+
+        // Nếu menu cửa đang mở thì luôn cho đóng (ưu tiên đóng).
+        bool isCurrentlyOpen = doorMenuUI != null && doorMenuUI.activeSelf;
+        if (!isCurrentlyOpen && IsOtherUIOpen())
+        {
+            Debug.Log("[DoorMenuTrigger] Có UI khác đang mở (tranh/minigame/hội thoại/cài đặt) nên không mở menu cửa.");
+            return;
+        }
         lastToggleFrame = Time.frameCount;
 
         if (doorMenuUI == null)
@@ -261,18 +369,59 @@ public class DoorMenuTrigger : MonoBehaviour
 
         Debug.Log($"[DoorMenuTrigger] 👉 Trạng thái Menu Cửa hiện tại: {(isNowActive ? "BẬT (Mở)" : "TẮT (Đóng)")}");
 
-        // Mở hoặc khóa chuột phù hợp theo nền tảng
-        PlatformHelper.SetCursorLocked(!IsOpen);
+        // Đóng menu -> khôi phục FULL gameplay (movement/camera/interaction/cursor/mobile)
+        // qua luồng tập trung. Mở menu -> khóa gameplay để bấm nút.
+        if (IsOpen)
+        {
+            ViewModeController.PauseGameplayForModal();
+        }
+        else
+        {
+            ViewModeController.TryResumeGameplayIfClear();
+        }
+    }
+
+    private static void TrackPanel(GameObject panel, bool open)
+    {
+        if (panel == null) return;
+        if (open) openPanels.Add(panel);
+        else openPanels.Remove(panel);
+        openPanels.RemoveWhere(go => go == null);
     }
 
     private void SyncOpenState()
     {
-        IsAnyOpen = IsOpen;
+        TrackPanel(doorMenuUI, doorMenuUI != null && doorMenuUI.activeSelf);
+        TrackPanel(minigameUI, minigameUI != null && minigameUI.activeSelf);
         MobileControlsOverlay controls = FindAnyObjectByType<MobileControlsOverlay>();
         if (controls != null)
         {
-            controls.SetGameplayInputEnabled(!IsAnyOpen);
+            controls.SetGameplayInputEnabled(!IsGameplayBlocked());
         }
+    }
+
+    private static bool IsGameplayBlocked()
+    {
+        if (IsAnyOpen || MinigameTrigger.IsAnyOpen) return true;
+        if (PaintingUIManager.Instance != null && PaintingUIManager.Instance.IsPopupOpen) return true;
+        if (DialogueUIManager.Instance != null && DialogueUIManager.Instance.IsSpeaking) return true;
+        if (ExitToExteriorUI.IsAnyOpen) return true;
+        SettingsManager settings = FindAnyObjectByType<SettingsManager>();
+        return settings != null && settings.IsSettingsOpen();
+    }
+
+    // Chặn mở menu cửa đè lên UI khác (tranh / workshop / hội thoại / cài đặt).
+    // PaintingTrigger/NPCInteractable đã guard chiều ngược lại, đây là chiều còn thiếu.
+    private static bool IsOtherUIOpen()
+    {
+        if (IsAnyOpen) return true;
+        if (PaintingUIManager.Instance != null && PaintingUIManager.Instance.IsPopupOpen) return true;
+        if (DialogueUIManager.Instance != null && DialogueUIManager.Instance.IsSpeaking) return true;
+        if (MinigameTrigger.IsAnyOpen) return true;
+        if (ExitToExteriorUI.IsAnyOpen) return true;
+        var settings = FindAnyObjectByType<SettingsManager>();
+        if (settings != null && settings.IsSettingsOpen()) return true;
+        return false;
     }
 
     // ============================================
@@ -284,16 +433,54 @@ public class DoorMenuTrigger : MonoBehaviour
     {
         lastToggleFrame = Time.frameCount;
 
+        // Đóng các UI khác đang mở tránh overlay chồng (giống MinigameTrigger)
+        if (PaintingUIManager.Instance != null && PaintingUIManager.Instance.IsPopupOpen)
+            PaintingUIManager.Instance.ClosePopup();
+        if (DialogueUIManager.Instance != null && DialogueUIManager.Instance.IsSpeaking)
+            DialogueUIManager.Instance.EndDialogue();
+
+        // Fallback: nếu chưa kéo Minigame UI thì mượn tạm UI của bàn workshop
+        // (MinigameTrigger ở bàn vẽ) để nút không chết.
+        if (minigameUI == null)
+        {
+            var table = FindAnyObjectByType<MinigameTrigger>();
+            if (table != null && table.minigameUI != null)
+            {
+                minigameUI = table.minigameUI;
+                Debug.Log("[DoorMenuTrigger] Tự mượn Workshop UI từ MinigameTrigger: " + minigameUI.name);
+            }
+        }
+
         if (doorMenuUI != null) doorMenuUI.SetActive(false); // Ẩn menu cửa
+        SyncOpenState();
+
+        // BUG 2 fix: cùng panel với bàn vẽ -> ủy thác cho MinigameTrigger.OpenMinigame()
+        // để cờ MinigameTrigger.IsAnyOpen đồng bộ (NPC/tranh guard đúng).
+        var owner = FindAnyObjectByType<MinigameTrigger>();
+        if (owner != null && owner.minigameUI != null && owner.minigameUI == minigameUI)
+        {
+            owner.OpenMinigame();
+            borrowedTable = owner;
+            SyncOpenState();
+            return;
+        }
 
         if (minigameUI != null)
         {
             minigameUI.SetActive(true); // Hiện bảng Minigame
+            // Panel riêng của cửa -> tự đăng ký cờ external để guard NPC/tranh thấy.
+            if (!externalMinigameOpen)
+            {
+                MinigameTrigger.SetExternalOpen(true);
+                externalMinigameOpen = true;
+            }
             SyncOpenState();
 
             // Khóa di chuyển nhân vật khi đang tô màu
             if (playerController != null)
                 playerController.enabled = false;
+            if (thirdPersonCamera != null)
+                thirdPersonCamera.enabled = false;
 
             // Mở chuột để người chơi chọn màu và tô
             PlatformHelper.SetCursorLocked(false);
@@ -312,11 +499,8 @@ public class DoorMenuTrigger : MonoBehaviour
         if (doorMenuUI != null) doorMenuUI.SetActive(false);
         SyncOpenState();
 
-        // Mở lại di chuyển & khóa chuột để chơi tiếp
-        if (playerController != null)
-            playerController.enabled = true;
-
-        PlatformHelper.SetCursorLocked(true);
+        // Giữ trigger/range hiện tại để E và click có thể mở lại menu từ vị trí này.
+        ViewModeController.TryResumeGameplayIfClear();
     }
 
     // 3. NÚT "QUAY LẠI TRIỂN LÃM" (Gắn vào nút [X] hoặc nút Thoát Minigame)
@@ -324,18 +508,26 @@ public class DoorMenuTrigger : MonoBehaviour
     {
         lastToggleFrame = Time.frameCount;
 
-        if (minigameUI != null)
+        if (borrowedTable != null)
         {
-            minigameUI.SetActive(false);
+            // Minigame do bàn vẽ quản lý -> ủy thác đóng để cờ đồng bộ.
+            borrowedTable.CloseMinigame();
+            borrowedTable = null;
+        }
+        else
+        {
+            if (minigameUI != null)
+            {
+                minigameUI.SetActive(false);
+            }
+            if (externalMinigameOpen)
+            {
+                MinigameTrigger.SetExternalOpen(false);
+                externalMinigameOpen = false;
+            }
         }
         SyncOpenState();
-
-        // Mở lại di chuyển nhân vật
-        if (playerController != null)
-            playerController.enabled = true;
-
-        // Khóa lại chuột để tiếp tục đi dạo trong bảo tàng
-        PlatformHelper.SetCursorLocked(true);
+        ViewModeController.TryResumeGameplayIfClear();
     }
 
     // 4. NÚT "VỀ MENU CHÍNH"
@@ -343,7 +535,18 @@ public class DoorMenuTrigger : MonoBehaviour
     {
         if (doorMenuUI != null) doorMenuUI.SetActive(false);
         if (minigameUI != null) minigameUI.SetActive(false);
+        borrowedTable = null;
+        if (externalMinigameOpen)
+        {
+            MinigameTrigger.SetExternalOpen(false);
+            externalMinigameOpen = false;
+        }
         SyncOpenState();
+
+        // Ngắt thuyết minh tranh (AudioManager sống xuyên scene, không tắt ở
+        // đây thì tiếng chạy tiếp sang MainMenu).
+        if (AudioManager.Instance != null)
+            AudioManager.Instance.StopVoiceover();
 
         if (playerController != null) playerController.enabled = true;
         PlatformHelper.SetCursorLocked(false);

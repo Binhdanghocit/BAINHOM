@@ -19,7 +19,7 @@ public class SettingsManager : MonoBehaviour
     [Header("--- Dropdowns & Audio ---")]
     public TMP_Dropdown bgmDropdown;
     public TMP_Dropdown fpsDropdown;
-    public AudioSource bgmAudioSource; // Kéo AudioSource phát nhạc ở Scene này vào
+    public AudioSource bgmAudioSource; // Legacy scene source, retired by the shared owner.
     public List<AudioClip> localBGMList = new List<AudioClip>(); // Danh sách nhạc BGM riêng cho Scene này
 
     [Header("--- Tâm ngắm (Crosshair) ---")]
@@ -59,16 +59,26 @@ public class SettingsManager : MonoBehaviour
             closeSettingButton.onClick.AddListener(ClosePanel);
 
         if (masterSlider != null)
+        {
+            masterSlider.onValueChanged.RemoveListener(OnMasterVolumeChanged);
             masterSlider.onValueChanged.AddListener(OnMasterVolumeChanged);
+        }
 
         if (bgmSlider != null)
+        {
+            bgmSlider.onValueChanged.RemoveListener(OnBGMVolumeChanged);
             bgmSlider.onValueChanged.AddListener(OnBGMVolumeChanged);
+        }
 
         if (sfxSlider != null)
+        {
+            sfxSlider.onValueChanged.RemoveListener(OnSFXVolumeChanged);
             sfxSlider.onValueChanged.AddListener(OnSFXVolumeChanged);
+        }
 
         // Cấu hình BGM Dropdown
-        SetupBGMDropdown();
+        AudioManager.RegisterSceneBGM(bgmAudioSource, localBGMList);
+        SyncAudioSettingsUI();
 
         // Cấu hình FPS Dropdown
         SetupFPSDropdown();
@@ -121,6 +131,14 @@ public class SettingsManager : MonoBehaviour
 
     private int lastScreenW;
     private int lastScreenH;
+    private Rect lastSettingsSafeArea;
+    private Vector2 lastSettingsCanvasSize;
+    private RectTransform settingsSafeContent;
+    private RectTransform settingsCard;
+    private TMP_Text settingsHeading;
+    private TMP_Text musicHeading;
+    private TMP_Text fpsHeading;
+    private readonly List<Toggle> settingsExtraToggles = new List<Toggle>();
     // Giá trị FPS thật song song với từng option hiển thị (mobile không có 90).
     private readonly List<int> fpsValues = new List<int>();
     private bool lastXRState;
@@ -135,10 +153,15 @@ public class SettingsManager : MonoBehaviour
         }
 
         // Xoay màn / đổi máy / chia đôi màn hình -> tính lại vị trí nút Setting
-        if (Screen.width != lastScreenW || Screen.height != lastScreenH)
+        Canvas settingsCanvas = settingsPanel != null ? settingsPanel.GetComponentInParent<Canvas>() : null;
+        Vector2 canvasSize = settingsCanvas != null ? ((RectTransform)settingsCanvas.transform).rect.size : Vector2.zero;
+        if (Screen.width != lastScreenW || Screen.height != lastScreenH || Screen.safeArea != lastSettingsSafeArea
+            || canvasSize != lastSettingsCanvasSize)
         {
             lastScreenW = Screen.width;
             lastScreenH = Screen.height;
+            lastSettingsSafeArea = Screen.safeArea;
+            lastSettingsCanvasSize = canvasSize;
             FixSettingsUIForAllScreens();
         }
 
@@ -178,7 +201,9 @@ public class SettingsManager : MonoBehaviour
     {
         if (settingsPanel != null)
         {
+            SyncAudioSettingsUI();
             settingsPanel.SetActive(true);
+            FixSettingsUIForAllScreens();
             ViewModeController.PauseGameplayForModal();
             MobileControlsOverlay controls = FindAnyObjectByType<MobileControlsOverlay>();
             if (controls != null) controls.SetGameplayInputEnabled(false);
@@ -208,6 +233,7 @@ public class SettingsManager : MonoBehaviour
 
             if (SceneManager.GetActiveScene().name == mainMenuSceneName)
             {
+                ViewModeController.TryResumeGameplayIfClear();
                 Cursor.lockState = CursorLockMode.None;
                 Cursor.visible = true;
             }
@@ -226,6 +252,13 @@ public class SettingsManager : MonoBehaviour
     // Fix gốc: nút cũ neo (1,0.5) + y=500 nên màn thấp là tràn mất; Canvas Sort=0 nên bị Mobile (1000) đè.
     private void FixSettingsUIForAllScreens()
     {
+        ApplySettingsLayout(Screen.safeArea, new Vector2(Screen.width, Screen.height));
+    }
+
+    private void ApplySettingsLayout(Rect safe, Vector2 screenSize)
+    {
+        if (screenSize.x <= 0 || screenSize.y <= 0) return;
+        if (safe.width <= 0 || safe.height <= 0) safe = new Rect(Vector2.zero, screenSize);
         // 1. Luôn vẽ Settings trên cùng (cao hơn canvas Mobile runtime order 1000)
         if (settingsPanel != null)
         {
@@ -233,112 +266,260 @@ public class SettingsManager : MonoBehaviour
             if (panelCanvas != null && panelCanvas.sortingOrder < 2000)
                 panelCanvas.sortingOrder = 2000;
         }
-        if (openSettingButton == null) return;
-        Canvas rootCanvas = openSettingButton.GetComponentInParent<Canvas>();
+        Canvas rootCanvas = settingsPanel != null ? settingsPanel.GetComponentInParent<Canvas>() : null;
+        if (rootCanvas == null && openSettingButton != null) rootCanvas = openSettingButton.GetComponentInParent<Canvas>();
         if (rootCanvas != null && rootCanvas.sortingOrder < 2000)
             rootCanvas.sortingOrder = 2000;
 
-        RectTransform btn = openSettingButton.GetComponent<RectTransform>();
-        if (btn == null || rootCanvas == null) return;
+        if (rootCanvas == null) return;
         RectTransform canvasRect = rootCanvas.GetComponent<RectTransform>();
         if (canvasRect == null) return;
 
         // 2. Đọc vùng an toàn của đúng máy đang chạy
-        Rect safe = Screen.safeArea;
-        if (safe.width <= 0 || safe.height <= 0)
-            safe = new Rect(0, 0, Screen.width, Screen.height);
-        float safeRightPx = Screen.width - (safe.x + safe.width);
-        float safeTopPx = Screen.height - (safe.y + safe.height);
+        safe.xMin = Mathf.Clamp(safe.xMin, 0, screenSize.x);
+        safe.xMax = Mathf.Clamp(safe.xMax, safe.xMin, screenSize.x);
+        safe.yMin = Mathf.Clamp(safe.yMin, 0, screenSize.y);
+        safe.yMax = Mathf.Clamp(safe.yMax, safe.yMin, screenSize.y);
+        float safeRightPx = screenSize.x - safe.xMax;
+        float safeTopPx = screenSize.y - safe.yMax;
 
         // 3. Đổi px màn hình -> đơn vị canvas (đúng cả khi có CanvasScaler)
         Vector2 canvasSize = canvasRect.rect.size;
         if (canvasSize.x <= 0 || canvasSize.y <= 0) return;
-        float scaleX = canvasSize.x / Mathf.Max(1, Screen.width);
-        float scaleY = canvasSize.y / Mathf.Max(1, Screen.height);
+        float scaleX = canvasSize.x / screenSize.x;
+        float scaleY = canvasSize.y / screenSize.y;
 
         const float padPx = 20f;
-        btn.anchorMin = new Vector2(1f, 1f);
-        btn.anchorMax = new Vector2(1f, 1f);
-        btn.pivot = new Vector2(0.5f, 0.5f);
-        btn.anchoredPosition = new Vector2(
-            -(btn.sizeDelta.x * 0.5f + (padPx + safeRightPx) * scaleX),
-            -(btn.sizeDelta.y * 0.5f + (padPx + safeTopPx) * scaleY));
+        if (openSettingButton != null)
+        {
+            RectTransform btn = openSettingButton.GetComponent<RectTransform>();
+            btn.anchorMin = btn.anchorMax = Vector2.one;
+            btn.pivot = new Vector2(0.5f, 0.5f);
+            btn.anchoredPosition = new Vector2(
+                -(btn.rect.width * btn.localScale.x * 0.5f + (padPx + safeRightPx) * scaleX),
+                -(btn.rect.height * btn.localScale.y * 0.5f + (padPx + safeTopPx) * scaleY));
+        }
+
+        RectTransform panel = settingsPanel != null ? settingsPanel.GetComponent<RectTransform>() : null;
+        if (panel == null) return;
+        // The background still catches clicks over the whole screen. All controls
+        // live in a separate safe-area card, with no inherited template scaling.
+        panel.localScale = Vector3.one;
+        panel.anchorMin = Vector2.zero;
+        panel.anchorMax = Vector2.one;
+        panel.offsetMin = panel.offsetMax = Vector2.zero;
+        if (settingsSafeContent == null)
+        {
+            settingsSafeContent = new GameObject("SettingsSafeArea", typeof(RectTransform)).GetComponent<RectTransform>();
+            settingsSafeContent.SetParent(panel, false);
+            settingsCard = new GameObject("SettingsCard", typeof(RectTransform), typeof(Image)).GetComponent<RectTransform>();
+            settingsCard.SetParent(settingsSafeContent, false);
+            Image card = settingsCard.GetComponent<Image>();
+            card.color = new Color(0.94f, 0.94f, 0.94f, 0.98f);
+            card.raycastTarget = false;
+            foreach (TMP_Text text in panel.GetComponentsInChildren<TMP_Text>(true))
+                if (text.transform.parent == panel) { settingsHeading = text; break; }
+            if (settingsHeading == null) settingsHeading = NewSettingsLabel("SettingsHeading", "CÀI ĐẶT");
+            musicHeading = NewSettingsLabel("MusicHeading", "Nhạc nền");
+            fpsHeading = NewSettingsLabel("FPSHeading", "Giới hạn FPS");
+            foreach (Toggle toggle in rootCanvas.GetComponentsInChildren<Toggle>(true))
+                if (toggle.name == "CrosshairToggle" || toggle.name == "JoystickToggle") settingsExtraToggles.Add(toggle);
+        }
+        settingsSafeContent.anchorMin = new Vector2(safe.xMin / screenSize.x, safe.yMin / screenSize.y);
+        settingsSafeContent.anchorMax = new Vector2(safe.xMax / screenSize.x, safe.yMax / screenSize.y);
+        settingsSafeContent.offsetMin = new Vector2(24f * scaleX, 24f * scaleY);
+        settingsSafeContent.offsetMax = -settingsSafeContent.offsetMin;
+        settingsSafeContent.localScale = Vector3.one;
+        Vector2 available = settingsSafeContent.rect.size;
+        bool portrait = available.y > available.x;
+        float extraHeight = settingsExtraToggles.Count * (portrait ? 80f : 56f);
+        Vector2 design = portrait ? new Vector2(560f, 822f + extraHeight) : new Vector2(880f, 470f + extraHeight);
+        float fit = Mathf.Max(0.01f, Mathf.Min(available.x / design.x, available.y / design.y));
+        fit = Mathf.Min(fit, Mathf.Max(1f, 1f / Mathf.Max(0.01f, rootCanvas.scaleFactor)));
+        settingsCard.anchorMin = settingsCard.anchorMax = settingsCard.pivot = new Vector2(0.5f, 0.5f);
+        settingsCard.anchoredPosition = Vector2.zero;
+        settingsCard.sizeDelta = design;
+        settingsCard.localScale = Vector3.one * fit;
+        PlaceSettingsControl(settingsHeading.rectTransform, new Vector2(0, -48), new Vector2(design.x - 40, 60));
+        FormatSettingsText(settingsHeading, 36f);
+        float sliderX = portrait ? 0f : -210f;
+        float width = portrait ? 470f : 340f;
+        PlaceSettingsSlider(masterSlider, new Vector2(sliderX, portrait ? -174 : -154), width);
+        PlaceSettingsSlider(bgmSlider, new Vector2(sliderX, portrait ? -284 : -254), width);
+        PlaceSettingsSlider(sfxSlider, new Vector2(sliderX, portrait ? -394 : -354), width);
+        float dropdownX = portrait ? 0f : 210f;
+        PlaceSettingsControl(musicHeading.rectTransform, new Vector2(dropdownX, portrait ? -466 : -110), new Vector2(width, 38));
+        PlaceSettingsControl(fpsHeading.rectTransform, new Vector2(dropdownX, portrait ? -578 : -250), new Vector2(width, 38));
+        FormatSettingsText(musicHeading, 28f);
+        FormatSettingsText(fpsHeading, 28f);
+        PlaceSettingsDropdown(bgmDropdown, new Vector2(dropdownX, portrait ? -518 : -166), width);
+        PlaceSettingsDropdown(fpsDropdown, new Vector2(dropdownX, portrait ? -630 : -306), width);
+        for (int i = 0; i < settingsExtraToggles.Count; i++)
+        {
+            Toggle toggle = settingsExtraToggles[i];
+            PlaceSettingsControl((RectTransform)toggle.transform, new Vector2(dropdownX, portrait ? -704 - i * 80f : -396 - i * 56f), new Vector2(width, 48));
+            Image hitArea = toggle.GetComponent<Image>();
+            if (hitArea == null) hitArea = toggle.gameObject.AddComponent<Image>();
+            hitArea.color = Color.clear;
+            hitArea.raycastTarget = true;
+            if (toggle.targetGraphic != null && toggle.targetGraphic.transform.parent == toggle.transform)
+            {
+                RectTransform box = toggle.targetGraphic.rectTransform;
+                box.anchorMin = box.anchorMax = new Vector2(0, 0.5f);
+                box.pivot = new Vector2(0, 0.5f);
+                box.anchoredPosition = Vector2.zero;
+                box.sizeDelta = new Vector2(40, 40);
+                box.localScale = Vector3.one;
+            }
+            foreach (Text label in toggle.GetComponentsInChildren<Text>(true))
+            {
+                RectTransform rect = label.rectTransform;
+                rect.anchorMin = new Vector2(0.15f, 0);
+                rect.anchorMax = Vector2.one;
+                rect.offsetMin = rect.offsetMax = Vector2.zero;
+                rect.localScale = Vector3.one;
+                label.fontSize = 28;
+                label.color = Color.black;
+                label.alignment = TextAnchor.MiddleLeft;
+                label.raycastTarget = false;
+            }
+        }
+        PlaceSettingsButton(closeSettingButton, new Vector2(0, (portrait ? -704 : -418) - extraHeight), portrait ? 470f : 230f);
+        PlaceSettingsButton(mainMenuButton, new Vector2(portrait ? -125f : -260f, (portrait ? -780 : -418) - extraHeight), 230f);
+        PlaceSettingsButton(quitButton, new Vector2(portrait ? 125f : 260f, (portrait ? -780 : -418) - extraHeight), 230f);
+    }
+
+    private TMP_Text NewSettingsLabel(string name, string text)
+    {
+        var label = new GameObject(name, typeof(RectTransform), typeof(TextMeshProUGUI)).GetComponent<TextMeshProUGUI>();
+        label.transform.SetParent(settingsCard, false);
+        if (bgmDropdown != null && bgmDropdown.captionText != null) label.font = bgmDropdown.captionText.font;
+        label.text = text;
+        label.color = Color.black;
+        return label;
+    }
+
+    private void PlaceSettingsControl(RectTransform rect, Vector2 position, Vector2 size)
+    {
+        if (rect == null) return;
+        if (rect.parent != settingsCard) rect.SetParent(settingsCard, false);
+        rect.anchorMin = rect.anchorMax = new Vector2(0.5f, 1f);
+        rect.pivot = new Vector2(0.5f, 0.5f);
+        rect.localScale = Vector3.one;
+        rect.anchoredPosition = position;
+        rect.sizeDelta = size;
+    }
+
+    private static void FormatSettingsText(TMP_Text text, float size)
+    {
+        text.fontSize = text.fontSizeMax = size;
+        text.fontSizeMin = 18f;
+        text.enableAutoSizing = true;
+        text.textWrappingMode = TextWrappingModes.NoWrap;
+        text.alignment = TextAlignmentOptions.Center;
+        text.raycastTarget = false;
+        text.color = Color.black;
+    }
+
+    private void PlaceSettingsSlider(Slider slider, Vector2 position, float width)
+    {
+        if (slider == null) return;
+        PlaceSettingsControl((RectTransform)slider.transform, position, new Vector2(width, 44));
+        foreach (TMP_Text text in slider.GetComponentsInChildren<TMP_Text>(true))
+        {
+            RectTransform rect = text.rectTransform;
+            rect.anchorMin = rect.anchorMax = new Vector2(0.5f, 0.5f);
+            rect.pivot = new Vector2(0.5f, 0.5f);
+            rect.anchoredPosition = new Vector2(0, 48);
+            rect.sizeDelta = new Vector2(width, 38);
+            rect.localScale = Vector3.one;
+            FormatSettingsText(text, 28f);
+        }
+    }
+
+    private void PlaceSettingsDropdown(TMP_Dropdown dropdown, Vector2 position, float width)
+    {
+        if (dropdown == null) return;
+        PlaceSettingsControl((RectTransform)dropdown.transform, position, new Vector2(width, 72));
+        if (dropdown.captionText != null) FormatSettingsText(dropdown.captionText, 28f);
+        if (dropdown.template != null)
+        {
+            dropdown.template.sizeDelta = new Vector2(dropdown.template.sizeDelta.x, 128f);
+            if (dropdown.itemText != null) FormatSettingsText(dropdown.itemText, 26f);
+        }
+    }
+
+    private void PlaceSettingsButton(Button button, Vector2 position, float width)
+    {
+        if (button == null) return;
+        PlaceSettingsControl((RectTransform)button.transform, position, new Vector2(width, 72));
+        foreach (TMP_Text text in button.GetComponentsInChildren<TMP_Text>(true)) FormatSettingsText(text, 28f);
     }
 
     private void OnMasterVolumeChanged(float value)
     {
-        if (AudioManager.Instance != null)
-            AudioManager.Instance.SetMasterVolume(value);
-        else AudioListener.volume = Mathf.Clamp01(value);
+        AudioManager.SaveMasterVolume(value);
     }
 
     private void OnBGMVolumeChanged(float value)
     {
-        if (bgmAudioSource != null)
-            bgmAudioSource.volume = value;
-
-        if (AudioManager.Instance != null)
-            AudioManager.Instance.SetBGMVolume(value);
+        AudioManager.SaveBGMVolume(value);
     }
 
     private void OnSFXVolumeChanged(float value)
     {
-        if (AudioManager.Instance != null)
-            AudioManager.Instance.SetSFXVolume(value);
+        AudioManager.SaveSFXVolume(value);
     }
 
-    // --- CẤU HÌNH BGM DROPDOWN ---
+    private readonly List<AudioClip> dropdownClips = new List<AudioClip>();
+
+    private void SyncAudioSettingsUI()
+    {
+        if (masterSlider != null) masterSlider.SetValueWithoutNotify(AudioManager.MasterVolume);
+        if (bgmSlider != null) bgmSlider.SetValueWithoutNotify(AudioManager.BGMVolume);
+        if (sfxSlider != null) sfxSlider.SetValueWithoutNotify(AudioManager.SFXVolume);
+        SetupBGMDropdown();
+    }
+
+    // Keep a clip mapping for this scene's order, not the manager's indices.
     private void SetupBGMDropdown()
     {
         if (bgmDropdown == null) return;
 
+        bgmDropdown.onValueChanged.RemoveListener(OnBGMSelected);
         bgmDropdown.ClearOptions();
+        dropdownClips.Clear();
         List<string> options = new List<string>();
 
         // Ưu tiên 1: Lấy danh sách nhạc tự kéo trong Inspector của Scene này
         if (localBGMList != null && localBGMList.Count > 0)
         {
-            for (int i = 0; i < localBGMList.Count; i++)
-            {
-                if (localBGMList[i] != null)
-                    options.Add(localBGMList[i].name);
-                else
-                    options.Add("Bài nhạc " + (i + 1));
-            }
+            dropdownClips.AddRange(localBGMList);
         }
         // Ưu tiên 2: Nếu không kéo nhạc riêng thì lấy từ AudioManager (nếu có)
         else if (AudioManager.Instance != null && AudioManager.Instance.bgmClips != null)
         {
-            for (int i = 0; i < AudioManager.Instance.bgmClips.Length; i++)
-            {
-                if (AudioManager.Instance.bgmClips[i] != null)
-                    options.Add(AudioManager.Instance.bgmClips[i].name);
-                else
-                    options.Add("Nhạc " + (i + 1));
-            }
-        }
-        else
-        {
-            options.Add("Không có nhạc");
+            dropdownClips.AddRange(AudioManager.Instance.bgmClips);
         }
 
+        AudioClip selected = AudioManager.SelectedBGM;
+        if (selected != null && !dropdownClips.Contains(selected)) dropdownClips.Add(selected);
+        foreach (AudioClip clip in dropdownClips)
+            options.Add(clip != null ? clip.name : "Không có nhạc");
+        if (options.Count == 0) options.Add("Không có nhạc");
+
         bgmDropdown.AddOptions(options);
+        bgmDropdown.SetValueWithoutNotify(Mathf.Max(0, dropdownClips.IndexOf(selected)));
+        bgmDropdown.RefreshShownValue();
         bgmDropdown.onValueChanged.AddListener(OnBGMSelected);
     }
 
     private void OnBGMSelected(int index)
     {
-        // Phát nhạc trực tiếp bằng localBGMList nếu có
-        if (localBGMList != null && localBGMList.Count > index && bgmAudioSource != null)
-        {
-            bgmAudioSource.clip = localBGMList[index];
-            bgmAudioSource.Play();
-        }
-        // Hoặc phát bằng AudioManager
-        else if (AudioManager.Instance != null)
-        {
-            AudioManager.Instance.ChangeBGM(index);
-        }
+        if (index >= 0 && index < dropdownClips.Count)
+            AudioManager.SelectBGM(dropdownClips[index]);
+        // Invalid/null entries leave both playback and the displayed selection unchanged.
+        SyncAudioSettingsUI();
     }
 
     // --- NÚT ĐIỀU HƯỚNG: tự tìm nút trong panel theo tên, thiếu thì tự tạo clone ---
@@ -402,7 +583,7 @@ public class SettingsManager : MonoBehaviour
             rt.anchorMax = tRt.anchorMax;
             rt.pivot = tRt.pivot;
             rt.sizeDelta = newSize;
-            rt.localScale = tRt.localScale;
+            rt.localScale = Vector3.one;
             rt.anchoredPosition = tRt.anchoredPosition + offset;
         }
 

@@ -9,13 +9,13 @@ using System.Collections.Generic;
 /// Lại gần bấm E / Click / Trigger VR sẽ mở Menu Cửa:
 /// 1. Chơi Minigame (Mở giao diện tô màu, tạm khóa di chuyển nhân vật)
 /// 2. Ở lại tham quan (Đóng menu, tiếp tục xem tranh)
-/// 3. Về Menu / Thoát Game
+/// 3. Về menu chính
 /// </summary>
 [RequireComponent(typeof(InteractableOutline))]
 public class DoorMenuTrigger : MonoBehaviour
 {
     [Header("Giao diện")]
-    [Tooltip("Bảng Menu 3 nút của Cánh Cửa (Chơi Minigame, Ở lại, Thoát)")]
+    [Tooltip("Menu cửa: Workshop, tiếp tục tham quan và về menu chính")]
     public GameObject doorMenuUI;
     [Tooltip("Bảng giao diện Minigame Tô Màu")]
     public GameObject minigameUI;
@@ -104,6 +104,8 @@ public class DoorMenuTrigger : MonoBehaviour
 
         if (doorMenuUI != null)
         {
+            if (doorMenuUI.GetComponent<DoorMenuLayout>() == null)
+                doorMenuUI.AddComponent<DoorMenuLayout>();
             WireButtonsAtRuntime();
             doorMenuUI.SetActive(false);
         }
@@ -159,7 +161,7 @@ public class DoorMenuTrigger : MonoBehaviour
             else if (n.Contains("thoat") || n.Contains("quit") || n.Contains("exit"))
             {
                 b.onClick.RemoveListener(ExitGame);
-                WireRuntimeListenerIfNeeded(b, ExitGame, nameof(ExitGame));
+                WireRuntimeListenerIfNeeded(b, GoToMainMenu, nameof(GoToMainMenu));
             }
             else if (n.Contains("menu"))
             {
@@ -476,6 +478,7 @@ public class DoorMenuTrigger : MonoBehaviour
             }
             SyncOpenState();
 
+            ViewModeController.PauseGameplayForModal();
             // Khóa di chuyển nhân vật khi đang tô màu
             if (playerController != null)
                 playerController.enabled = false;

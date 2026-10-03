@@ -972,7 +972,7 @@ public sealed class ColoringPageMinigame : MonoBehaviour, IPointerClickHandler
     {
         if (settingsManager != null && settingsManager.IsSettingsOpen()) settingsManager.ClosePanel();
         if (optionsMenu != null) optionsMenu.SetActive(false);
-        foreach (MinigameTrigger owner in FindObjectsByType<MinigameTrigger>(FindObjectsSortMode.None))
+        foreach (MinigameTrigger owner in FindObjectsByType<MinigameTrigger>())
             if (owner.IsMinigameOpen && owner.minigameUI == workshopPanel) owner.CloseMinigame();
         if (doorTrigger != null) doorTrigger.CloseMinigame();
         else
@@ -1127,6 +1127,8 @@ public sealed class ColoringPageMinigame : MonoBehaviour, IPointerClickHandler
             previousAvailableSize = available;
             ApplyResponsiveLayout();
         }
+        // Refit without reselection or recreating the painted texture. Child
+        // viewports can resize even when the safe-area parent stays the same.
         RefreshArtworkLayout();
     }
 

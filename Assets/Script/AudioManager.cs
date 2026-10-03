@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using UnityEngine;
 
 public class AudioManager : MonoBehaviour
@@ -17,65 +18,126 @@ public class AudioManager : MonoBehaviour
     public AudioClip jumpClip;
     public AudioClip inspectClip;
 
-    private float bgmVolume = 1.0f;
-    private float sfxVolume = 1.0f;
+    // Session settings exist even before a scene creates the first manager.
+    public static float MasterVolume { get; private set; } = 1f;
+    public static float BGMVolume { get; private set; } = 1f;
+    public static float SFXVolume { get; private set; } = 1f;
+    public static AudioClip SelectedBGM { get; private set; }
 
-    // Chỉ tự phát BGM 1 lần duy nhất mỗi lần mở app. Không có cờ này, bản
-    // duplicate ở scene gallery sẽ Start() và phát lại track 0 từ đầu mỗi
-    // lần về menu rồi vào lại (BGM restart).
-    private static bool bgmAutoStarted = false;
+    [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+    private static void ResetSession()
+    {
+        Instance = null;
+        SelectedBGM = null;
+        MasterVolume = BGMVolume = SFXVolume = 1f;
+        AudioListener.volume = MasterVolume;
+    }
 
     private void Awake()
     {
-        if (Instance == null)
+        if (Instance != null && Instance != this)
         {
-            Instance = this;
-            // DontDestroyOnLoad chỉ áp dụng cho root GameObject. AudioManager trong
-            // scene gallery đang nằm con (có parent) nên phải tách ra trước.
-            if (transform.parent != null)
-                transform.SetParent(null);
-            DontDestroyOnLoad(gameObject);
-
-            // Tự động tìm 2 AudioSource nếu chưa kéo
-            AudioSource[] sources = GetComponents<AudioSource>();
-            if (sources.Length >= 1 && bgmSource == null) bgmSource = sources[0];
-            if (sources.Length >= 2 && sfxSource == null) sfxSource = sources[1];
-            if (sources.Length >= 3 && voiceSource == null) voiceSource = sources[2];
-        }
-        else
-        {
+            // Stop immediately, rather than waiting for deferred Destroy.
+            foreach (AudioSource source in GetComponentsInChildren<AudioSource>(true))
+            {
+                source.playOnAwake = false;
+                source.Stop();
+                source.enabled = false;
+            }
+            Instance.AddBGMClips(bgmClips);
+            if (Instance.footstepClip == null) Instance.footstepClip = footstepClip;
+            if (Instance.jumpClip == null) Instance.jumpClip = jumpClip;
+            if (Instance.inspectClip == null) Instance.inspectClip = inspectClip;
+            Instance.EnsureBGMPlaying();
+            enabled = false;
             Destroy(gameObject);
+            return;
         }
+
+        Instance = this;
+        if (transform.parent != null) transform.SetParent(null);
+        if (Application.isPlaying) DontDestroyOnLoad(gameObject);
+
+        AudioSource[] sources = GetComponents<AudioSource>();
+        if (bgmSource == null && sources.Length > 0) bgmSource = sources[0];
+        if (sfxSource == null && sources.Length > 1) sfxSource = sources[1];
+        if (voiceSource == null && sources.Length > 2) voiceSource = sources[2];
+        if (bgmSource == null) bgmSource = gameObject.AddComponent<AudioSource>();
+        if (sfxSource == null) sfxSource = gameObject.AddComponent<AudioSource>();
+        if (voiceSource == null) voiceSource = gameObject.AddComponent<AudioSource>();
+        bgmSource.playOnAwake = sfxSource.playOnAwake = voiceSource.playOnAwake = false;
+        bgmSource.loop = true;
+        // Serialized sources cannot override a choice made before this Awake.
+        if (SelectedBGM == null && bgmSource.clip != null) SelectedBGM = bgmSource.clip;
+        ApplyVolumes();
     }
 
     private void Start()
     {
-        // Tự động phát bài BGM đầu tiên (phần tử số 0) khi game vừa chạy.
-        // Guard: nếu nhạc đang phát rồi (về menu rồi vào lại gallery) thì giữ
-        // nguyên, không restart từ đầu.
-        if (bgmAutoStarted) return;
-        if (bgmSource != null && bgmSource.isPlaying)
-        {
-            bgmAutoStarted = true;
-            return;
-        }
-
-        // Keep retrying on a later AudioManager if this scene has no usable
-        // track/source. A missing clip must not consume the one-time startup.
-        if (bgmSource == null || bgmClips == null || bgmClips.Length == 0 || bgmClips[0] == null)
-            return;
-
-        ChangeBGM(0);
-        if (bgmSource.isPlaying) bgmAutoStarted = true;
+        if (Instance == this) EnsureBGMPlaying();
     }
 
-    // --- CÁC HÀM PHÁT ÂM THANH ---
+    private void OnDestroy()
+    {
+        if (Instance == this) Instance = null;
+    }
+
+    // Retire the old scene source and give its catalog to a persistent owner.
+    public static void RegisterSceneBGM(AudioSource legacySource, IEnumerable<AudioClip> clips)
+    {
+        if (legacySource != null && (Instance == null || legacySource != Instance.bgmSource))
+        {
+            legacySource.Stop();
+            legacySource.playOnAwake = false;
+            legacySource.enabled = false;
+        }
+        if (Instance == null)
+            new GameObject("AudioManager").AddComponent<AudioManager>();
+        Instance.AddBGMClips(clips);
+        Instance.EnsureBGMPlaying();
+    }
+
+    private void AddBGMClips(IEnumerable<AudioClip> clips)
+    {
+        var catalog = new List<AudioClip>();
+        if (bgmClips != null)
+            foreach (AudioClip clip in bgmClips)
+                if (clip != null && !catalog.Contains(clip)) catalog.Add(clip);
+        if (clips != null)
+            foreach (AudioClip clip in clips)
+                if (clip != null && !catalog.Contains(clip)) catalog.Add(clip);
+        bgmClips = catalog.ToArray();
+    }
+
+    private void EnsureBGMPlaying()
+    {
+        if (SelectedBGM == null && bgmClips != null)
+            foreach (AudioClip clip in bgmClips)
+                if (clip != null) { SelectedBGM = clip; break; }
+        if (SelectedBGM == null || bgmSource == null) return;
+        if (bgmSource.clip == SelectedBGM && bgmSource.isPlaying) return;
+        bgmSource.clip = SelectedBGM;
+        bgmSource.loop = true;
+        bgmSource.volume = BGMVolume;
+        bgmSource.Play();
+    }
+
+    public static void SelectBGM(AudioClip clip)
+    {
+        if (clip == null) return;
+        SelectedBGM = clip;
+        if (Instance != null) Instance.EnsureBGMPlaying();
+    }
+
+    public void ChangeBGM(int index)
+    {
+        if (bgmClips == null || index < 0 || index >= bgmClips.Length) return;
+        SelectBGM(bgmClips[index]);
+    }
+
     public void PlaySFX(AudioClip clip)
     {
-        if (clip != null && sfxSource != null)
-        {
-            sfxSource.PlayOneShot(clip);
-        }
+        if (clip != null && sfxSource != null) sfxSource.PlayOneShot(clip);
     }
 
     public void PlayVoiceover(AudioClip clip)
@@ -86,66 +148,46 @@ public class AudioManager : MonoBehaviour
             voiceSource.playOnAwake = false;
         }
         voiceSource.Stop();
-        if (clip != null)
-        {
-            voiceSource.clip = clip;
-            voiceSource.volume = 1f;
-            voiceSource.Play();
-        }
+        if (clip == null) return;
+        voiceSource.clip = clip;
+        voiceSource.volume = 1f;
+        voiceSource.Play();
     }
 
     public void StopVoiceover()
     {
-        if (voiceSource != null && voiceSource.isPlaying)
-        {
-            voiceSource.Stop();
-        }
+        if (voiceSource != null) voiceSource.Stop();
     }
 
-
-    public void ChangeBGM(int index)
+    public static void SaveMasterVolume(float value)
     {
-        if (bgmClips != null && index >= 0 && index < bgmClips.Length)
-        {
-            if (bgmSource != null)
-            {
-                bgmSource.clip = bgmClips[index];
-                bgmSource.loop = true;
-                bgmSource.volume = bgmVolume;
-                bgmSource.Play();
-            }
-        }
+        MasterVolume = Mathf.Clamp01(value);
+        AudioListener.volume = MasterVolume;
     }
 
-    // --- CÁC HÀM ĐIỀU CHỈNH ÂM LƯỢNG ---
-    public void SetMasterVolume(float value)
+    public static void SaveBGMVolume(float value)
     {
-        // Global gain is applied once, including AudioSources outside this manager.
-        AudioListener.volume = Mathf.Clamp01(value);
+        BGMVolume = Mathf.Clamp01(value);
+        if (Instance != null) Instance.ApplyVolumes();
     }
 
-    public void SetBGMVolume(float value)
+    public static void SaveSFXVolume(float value)
     {
-        bgmVolume = Mathf.Clamp01(value);
-        UpdateVolumes();
+        SFXVolume = Mathf.Clamp01(value);
+        if (Instance != null) Instance.ApplyVolumes();
     }
 
-    public void SetSFXVolume(float value)
-    {
-        sfxVolume = Mathf.Clamp01(value);
-        UpdateVolumes();
-    }
+    // Preserve gameplay callers and serialized callbacks.
+    public void SetMasterVolume(float value) => SaveMasterVolume(value);
+    public void SetBGMVolume(float value) => SaveBGMVolume(value);
+    public void SetSFXVolume(float value) => SaveSFXVolume(value);
 
-    private void UpdateVolumes()
+    private void ApplyVolumes()
     {
-        if (bgmSource != null)
-        {
-            bgmSource.volume = bgmVolume;
-        }
-        if (voiceSource != null)
-        {
-            voiceSource.volume = 1f;
-        }
-        if (sfxSource != null) sfxSource.volume = sfxVolume;
+        // Master gain applies only at the listener, never again at a source.
+        AudioListener.volume = MasterVolume;
+        if (bgmSource != null) bgmSource.volume = BGMVolume;
+        if (sfxSource != null) sfxSource.volume = SFXVolume;
+        if (voiceSource != null) voiceSource.volume = 1f;
     }
 }

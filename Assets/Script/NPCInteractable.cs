@@ -40,6 +40,7 @@ public class NPCInteractable : MonoBehaviour
 
     public void TriggerDialogue()
     {
+        if (!isActiveAndEnabled) return;
         if (lastInteractFrame == Time.frameCount) return;
         lastInteractFrame = Time.frameCount;
 

@@ -100,18 +100,29 @@ public class ViewModeController : MonoBehaviour
     /// <summary>Khôi phục input theo cùng quy tắc rig/platform đã dùng khi vào Gallery.</summary>
     public static bool TryResumeGameplayIfClear()
     {
-        if (DoorMenuTrigger.IsAnyOpen || MinigameTrigger.IsAnyOpen || ExitToExteriorUI.IsAnyOpen)
+        if (IsBlockingModalOpen())
+        {
+            PauseGameplayForModal();
             return false;
-        if (PaintingUIManager.Instance != null && PaintingUIManager.Instance.IsPopupOpen) return false;
-        if (DialogueUIManager.Instance != null && DialogueUIManager.Instance.IsSpeaking) return false;
-        SettingsManager settings = FindAnyObjectByType<SettingsManager>();
-        if (settings != null && settings.IsSettingsOpen()) return false;
+        }
 
+        VRModalLocomotionLock.Resume();
         Time.timeScale = 1f;
         ViewModeController mode = FindAnyObjectByType<ViewModeController>();
         if (mode != null) mode.ResumeCurrentPlatform();
         else ResumeWithoutViewModeController();
         return true;
+    }
+
+    public static bool IsBlockingModalOpen()
+    {
+        if (DoorMenuTrigger.IsAnyOpen || MinigameTrigger.IsAnyOpen || ExitToExteriorUI.IsAnyOpen)
+            return true;
+        if (PaintingUIManager.Instance != null && PaintingUIManager.Instance.IsPopupOpen) return true;
+        if (DialogueUIManager.Instance != null && DialogueUIManager.Instance.IsSpeaking) return true;
+        foreach (SettingsManager settings in FindObjectsByType<SettingsManager>())
+            if (settings.IsSettingsOpen()) return true;
+        return false;
     }
 
     private void ResumeCurrentPlatform()
@@ -243,6 +254,7 @@ public class ViewModeController : MonoBehaviour
 
     public static void PauseGameplayForModal()
     {
+        VRModalLocomotionLock.Pause();
         foreach (PlayerController controller in FindObjectsByType<PlayerController>(FindObjectsInactive.Exclude))
             controller.enabled = false;
         foreach (ThirdPersonCamera cameraController in FindObjectsByType<ThirdPersonCamera>(FindObjectsInactive.Exclude))

@@ -48,6 +48,8 @@ public static class SetupColoringWorkshopTool
         GameObject panel = existingPanel != null ? existingPanel.gameObject
             : MakeFullscreenPanel(canvasObject.transform, "Panel_WorkshopColoring", new Color(0.08f, 0.075f, 0.065f, 1f));
         Undo.RecordObject(panel, "Configure full-screen coloring workshop");
+        // Workshop is opened by an explicit interaction, never by scene startup.
+        panel.SetActive(false);
         RectTransform panelRect = panel.GetComponent<RectTransform>();
         if (panelRect == null) panelRect = Undo.AddComponent<RectTransform>(panel);
         panelRect.anchorMin = Vector2.zero;

@@ -39,6 +39,15 @@ public sealed class AddColoringArtworkWindow : EditorWindow
     private int maskPixelCount;
     private Rect previewRect;
     private string previewProbe = "Rà chuột hoặc bấm vào preview để kiểm tra điểm ảnh/vùng.";
+    private int sourceMode;
+    private float colorMergeDistance = 24f;
+    private int colorLineThickness = 1;
+    private ColorArtworkSegmentation colorAnalysis;
+    private readonly HashSet<int> excludedColorRegions = new HashSet<int>();
+    private int colorEditMode, pendingMergeRegion, lostColorRegions;
+    private string colorAnalysisError;
+    private HashSet<int> unpaintableColorRegions = new HashSet<int>();
+    private Color32[] colorReferencePixels;
 
     // Chế độ cửa sổ
     private int editorMode = 0;
@@ -79,8 +88,9 @@ public sealed class AddColoringArtworkWindow : EditorWindow
         }
 
         EditorGUILayout.LabelField("Thêm tranh vào workshop đang mở", EditorStyles.boldLabel);
-        EditorGUILayout.HelpBox(
-            "Cấu hình một lần gồm: Ảnh gốc, Tên tranh và Ảnh mẫu tùy chọn. " +
+        EditorGUILayout.HelpBox(sourceMode == 1
+            ? "Tách các mảng màu liên thông, sinh nét từ ranh giới; chỉnh vùng trên preview trước khi thêm vào workshop."
+            : "Cấu hình một lần gồm: Ảnh gốc, Tên tranh và Ảnh mẫu tùy chọn. " +
             "Công cụ sẽ tự chuẩn hóa ảnh nét đơn sắc (không ghi đè ảnh gốc), lấp khe nhỏ, " +
             "phát hiện cảnh báo rò/gộp vùng và cho phép vẽ thêm nét ngăn thủ công trực tiếp trên preview trước khi lưu.",
             MessageType.Info);
@@ -92,8 +102,18 @@ public sealed class AddColoringArtworkWindow : EditorWindow
         }
 
         artworkName = EditorGUILayout.TextField("Tên tranh", artworkName);
+        int nextSourceMode = GUILayout.Toolbar(sourceMode, new[] { "Từ ảnh nét", "Tạo tranh tô từ ảnh màu" });
+        if (nextSourceMode != sourceMode)
+        {
+            sourceMode = nextSourceMode;
+            manualStrokes = null;
+            ReanalyzeArtwork();
+        }
         originalImage = (Texture2D)EditorGUILayout.ObjectField("Ảnh tranh gốc", originalImage, typeof(Texture2D), false);
-        referenceArt = (Texture2D)EditorGUILayout.ObjectField("Ảnh mẫu hoàn thiện (tùy chọn)", referenceArt, typeof(Texture2D), false);
+        if (sourceMode == 0)
+            referenceArt = (Texture2D)EditorGUILayout.ObjectField("Ảnh mẫu hoàn thiện (tùy chọn)", referenceArt, typeof(Texture2D), false);
+        else
+            EditorGUILayout.HelpBox("Giữ ảnh gốc; lưu bản mẫu riêng cùng kích thước với ảnh nét để không lệch khi đổi platform. Vùng xám đã loại không nhận tô; nền transparent tự loại. Ảnh có texture có thể cần gộp vùng thủ công.", MessageType.Info);
 
         if (originalImage != cachedOriginalImage)
         {
@@ -104,6 +124,12 @@ public sealed class AddColoringArtworkWindow : EditorWindow
 
         if (originalImage != null)
         {
+            if (sourceMode == 1)
+            {
+                DrawColorAuthoring();
+            }
+            else
+            {
             EditorGUILayout.Space(6f);
             EditorGUILayout.LabelField("Tham số nhận diện nét & phân vùng", EditorStyles.boldLabel);
             int nextThreshold = EditorGUILayout.IntSlider("Ngưỡng nét viền đen", lineThreshold, 50, 240);
@@ -163,6 +189,7 @@ public sealed class AddColoringArtworkWindow : EditorWindow
                 referenceOffset.x = EditorGUILayout.Slider("Dịch ngang", referenceOffset.x, -1f, 1f);
                 referenceOffset.y = EditorGUILayout.Slider("Dịch dọc", referenceOffset.y, -1f, 1f);
             }
+            }
         }
         else
         {
@@ -176,7 +203,8 @@ public sealed class AddColoringArtworkWindow : EditorWindow
 
         EditorGUILayout.Space(10f);
         bool canAdd = !EditorApplication.isPlaying && workshop != null
-            && !string.IsNullOrWhiteSpace(artworkName) && originalImage != null && fillableRegionCount > 0;
+            && !string.IsNullOrWhiteSpace(artworkName) && originalImage != null && fillableRegionCount > 0
+            && (sourceMode == 0 || colorAnalysis != null && lostColorRegions == 0 && colorAnalysisError == null);
 
         using (new EditorGUI.DisabledScope(!canAdd))
         {
@@ -239,12 +267,10 @@ public sealed class AddColoringArtworkWindow : EditorWindow
 
         if (alignmentTarget.referenceArt != null)
         {
-            Rect refRect = ContainRect(alignmentTarget.referenceArt.width, alignmentTarget.referenceArt.height, area);
-            Rect aligned = ColoringArtworkLayout.ReferenceRect(
+            Rect refRect = ColoringArtworkLayout.ReferencePreviewRect(
                 new Vector2(alignmentTarget.lineArt.width, alignmentTarget.lineArt.height),
                 new Vector2(alignmentTarget.referenceArt.width, alignmentTarget.referenceArt.height),
-                area.size, referenceScale, referenceOffset);
-            refRect = new Rect(area.center + new Vector2(aligned.xMin, -aligned.yMax), aligned.size);
+                area, referenceScale, referenceOffset);
             GUI.color = new Color(1f, 1f, 1f, 0.45f);
             GUI.BeginClip(area);
             refRect.position -= area.position;
@@ -302,6 +328,11 @@ public sealed class AddColoringArtworkWindow : EditorWindow
         maskPixelCount = 0;
 
         if (originalImage == null) return;
+        if (sourceMode == 1)
+        {
+            AnalyzeColorArtwork();
+            return;
+        }
         if (!MakeTextureReadable(originalImage, out Texture2D readableSource)) return;
         originalImage = readableSource;
 
@@ -622,11 +653,9 @@ public sealed class AddColoringArtworkWindow : EditorWindow
         // 2. Vẽ ảnh mẫu bán trong suốt (nếu có)
         if (referenceArt != null)
         {
-            Rect sampleRect = ContainRect(referenceArt.width, referenceArt.height, area);
-            Rect aligned = ColoringArtworkLayout.ReferenceRect(
+            Rect sampleRect = ColoringArtworkLayout.ReferencePreviewRect(
                 new Vector2(originalImage.width, originalImage.height),
-                new Vector2(referenceArt.width, referenceArt.height), area.size, referenceScale, referenceOffset);
-            sampleRect = new Rect(area.center + new Vector2(aligned.xMin, -aligned.yMax), aligned.size);
+                new Vector2(referenceArt.width, referenceArt.height), area, referenceScale, referenceOffset);
             GUI.color = new Color(1f, 1f, 1f, 0.35f);
             GUI.BeginClip(area);
             sampleRect.position -= area.position;
@@ -756,85 +785,384 @@ public sealed class AddColoringArtworkWindow : EditorWindow
 
     private void AddArtworkToWorkshop()
     {
-        if (workshop == null || originalImage == null || string.IsNullOrWhiteSpace(artworkName) || calculatedRegions.Count == 0)
-            return;
-
-        string sourcePath = AssetDatabase.GetAssetPath(originalImage);
-        string folder = Path.GetDirectoryName(sourcePath)?.Replace('\\', '/') ?? "Assets/TRAnh";
-        string sanitizedName = SanitizeFileName(artworkName.Trim());
-
-        // 1. Lưu file Line Art PNG
-        string lineArtPath = AssetDatabase.GenerateUniqueAssetPath($"{folder}/{sanitizedName}_LineArt.png");
-        File.WriteAllBytes(lineArtPath, previewLineArt.EncodeToPNG());
-        AssetDatabase.ImportAsset(lineArtPath, ImportAssetOptions.ForceSynchronousImport);
-        ConfigureTextureImporter(lineArtPath, isReadable: true, uncompressed: true, pointFilter: false);
-        Texture2D savedLineArt = AssetDatabase.LoadAssetAtPath<Texture2D>(lineArtPath);
-
-        // 2. Lưu file Paint Mask PNG
-        string maskPath = AssetDatabase.GenerateUniqueAssetPath($"{folder}/{sanitizedName}_PaintMask.png");
-        File.WriteAllBytes(maskPath, previewMask.EncodeToPNG());
-        AssetDatabase.ImportAsset(maskPath, ImportAssetOptions.ForceSynchronousImport);
-        ConfigureTextureImporter(maskPath, isReadable: true, uncompressed: true, pointFilter: true);
-        Texture2D savedPaintMask = AssetDatabase.LoadAssetAtPath<Texture2D>(maskPath);
-
-        // 3. Lưu file Region Data JSON
-        string jsonPath = AssetDatabase.GenerateUniqueAssetPath($"{folder}/{sanitizedName}_RegionData.json");
-        ColoringRegionDataAsset dataAsset = new ColoringRegionDataAsset
+        if (!TryAddArtworkToWorkshop(out ColoringArtworkDefinition added, out string error))
         {
-            width = originalImage.width,
-            height = originalImage.height,
-            regionCount = calculatedRegions.Count,
-            regions = calculatedRegions.ToArray()
-        };
-        string jsonContent = JsonUtility.ToJson(dataAsset, false);
-        File.WriteAllText(jsonPath, jsonContent);
-        AssetDatabase.ImportAsset(jsonPath, ImportAssetOptions.ForceSynchronousImport);
-        TextAsset savedRegionData = AssetDatabase.LoadAssetAtPath<TextAsset>(jsonPath);
-
-        if (savedLineArt == null || savedPaintMask == null || savedRegionData == null)
-        {
-            EditorUtility.DisplayDialog("Lỗi lưu tài nguyên", "Không thể nạp lại tài nguyên vừa tạo. Vui lòng thử lại.", "OK");
+            EditorUtility.DisplayDialog("Lỗi lưu tài nguyên", error, "OK");
             return;
         }
-
-        // 4. Thêm mục vào ColoringPageMinigame
-        Undo.RecordObject(workshop, "Add Coloring Artwork");
-        List<ColoringArtworkDefinition> list = workshop.paintings == null
-            ? new List<ColoringArtworkDefinition>()
-            : new List<ColoringArtworkDefinition>(workshop.paintings);
-
-        list.Add(new ColoringArtworkDefinition
-        {
-            title = artworkName.Trim(),
-            lineArt = savedLineArt,
-            referenceArt = referenceArt,
-            paintMask = savedPaintMask,
-            regionData = savedRegionData,
-            referenceScale = referenceScale,
-            referenceOffset = referenceOffset,
-            minimumRegionPixels = minimumRegionPixels,
-            whiteThreshold = lineThreshold,
-            regions = Array.Empty<ColoringRegionSeed>()
-        });
-
-        workshop.paintings = list.ToArray();
-        EditorUtility.SetDirty(workshop);
-        EditorSceneManager.MarkSceneDirty(workshop.gameObject.scene);
-
         EditorUtility.DisplayDialog("Thành công!",
-            $"Đã thêm tranh '{artworkName}' thành công!\n" +
-            $"- Ảnh nét: {lineArtPath}\n" +
-            $"- Mask: {maskPath}\n" +
-            $"- Vùng tô: {calculatedRegions.Count} vùng (TextAsset JSON: {jsonPath})\n" +
+            $"Đã thêm tranh '{added.title}' thành công!\n" +
+            $"- Ảnh nét: {AssetDatabase.GetAssetPath(added.lineArt)}\n" +
+            $"- Mask: {AssetDatabase.GetAssetPath(added.paintMask)}\n" +
+            $"- Vùng tô: {JsonUtility.FromJson<ColoringRegionDataAsset>(added.regionData.text).regionCount} vùng " +
+            $"(TextAsset JSON: {AssetDatabase.GetAssetPath(added.regionData)})\n" +
             $"- Ảnh gốc không bị ghi đè.", "Tuyệt vời!");
+    }
 
+    // The button and automated integration checks share this complete save path.
+    internal bool TryAddArtworkToWorkshop(out ColoringArtworkDefinition added, out string error)
+    {
+        added = null;
+        error = null;
+        var createdPaths = new List<string>();
+        try
+        {
+            if (sourceMode == 1 && (colorAnalysis == null || colorAnalysisError != null || lostColorRegions > 0))
+                throw new InvalidOperationException("Phân tích lại ảnh màu; giảm độ dày nét hoặc gộp/loại vùng bị mất trước khi lưu.");
+            if (workshop == null || originalImage == null || string.IsNullOrWhiteSpace(artworkName)
+                || calculatedRegions.Count == 0 || previewLineArt == null || previewMask == null)
+                throw new InvalidOperationException("Hãy chọn workshop, đặt tên tranh và phân tích các vùng trước khi lưu.");
+            if (originalImage.width != previewLineArt.width || originalImage.height != previewLineArt.height
+                || previewMask.width != previewLineArt.width || previewMask.height != previewLineArt.height)
+                throw new InvalidOperationException("Kích thước ảnh đã thay đổi. Hãy phân tích lại tranh trước khi lưu.");
+            string sourcePath = AssetDatabase.GetAssetPath(originalImage);
+            if (string.IsNullOrEmpty(sourcePath))
+                throw new InvalidOperationException("Ảnh gốc phải là tài nguyên đã lưu trong dự án.");
+            string folder = Path.GetDirectoryName(sourcePath).Replace('\\', '/');
+            string name = SanitizeFileName(artworkName.Trim());
+            string linePath = AssetDatabase.GenerateUniqueAssetPath($"{folder}/{name}_LineArt.png");
+            createdPaths.Add(linePath);
+            File.WriteAllBytes(linePath, previewLineArt.EncodeToPNG());
+            AssetDatabase.ImportAsset(linePath, ImportAssetOptions.ForceSynchronousImport);
+            if (sourceMode == 1)
+                ConfigureFinalArtworkImporter(linePath, previewLineArt.width, previewLineArt.height, false);
+            else
+                ConfigureTextureImporter(linePath, isReadable: true, uncompressed: true, pointFilter: false);
+            Texture2D importedLine = AssetDatabase.LoadAssetAtPath<Texture2D>(linePath);
+            if (importedLine == null) throw new InvalidOperationException("Không nạp được ảnh nét sau import.");
+
+            // The first import may resize through NPOT/default/platform presets.
+            // Bake every output in that actual pixel grid, using the same discrete UV sample.
+            int width = importedLine.width, height = importedLine.height;
+            ColoringRegionDataAsset data = BuildImportedRegionData(width, height, out Color32[] linePixels, out Color32[] maskPixels);
+            WritePixels(linePath, width, height, linePixels);
+            ConfigureFinalArtworkImporter(linePath, width, height, false);
+            string maskPath = AssetDatabase.GenerateUniqueAssetPath($"{folder}/{name}_PaintMask.png");
+            createdPaths.Add(maskPath);
+            WritePixels(maskPath, width, height, maskPixels);
+            AssetDatabase.ImportAsset(maskPath, ImportAssetOptions.ForceSynchronousImport);
+            ConfigureFinalArtworkImporter(maskPath, width, height, true);
+            Texture2D savedLine = AssetDatabase.LoadAssetAtPath<Texture2D>(linePath);
+            Texture2D savedMask = AssetDatabase.LoadAssetAtPath<Texture2D>(maskPath);
+            ValidateImportedArtwork(data, savedLine, savedMask);
+
+            string jsonPath = AssetDatabase.GenerateUniqueAssetPath($"{folder}/{name}_RegionData.json");
+            createdPaths.Add(jsonPath);
+            File.WriteAllText(jsonPath, JsonUtility.ToJson(data));
+            AssetDatabase.ImportAsset(jsonPath, ImportAssetOptions.ForceSynchronousImport);
+            TextAsset savedData = AssetDatabase.LoadAssetAtPath<TextAsset>(jsonPath);
+            if (savedData == null) throw new InvalidOperationException("Không nạp được JSON vùng tô sau import.");
+            ValidateImportedArtwork(JsonUtility.FromJson<ColoringRegionDataAsset>(savedData.text), savedLine, savedMask);
+
+            Texture2D savedReference = referenceArt;
+            if (sourceMode == 1)
+            {
+                if (colorReferencePixels == null || colorReferencePixels.Length != width * height)
+                    throw new InvalidOperationException("Ảnh mẫu không còn khớp bản phân vùng; hãy phân tích lại.");
+                string samplePath = AssetDatabase.GenerateUniqueAssetPath($"{folder}/{name}_Reference.png");
+                createdPaths.Add(samplePath);
+                WritePixels(samplePath, width, height, colorReferencePixels);
+                AssetDatabase.ImportAsset(samplePath, ImportAssetOptions.ForceSynchronousImport);
+                ConfigureFinalArtworkImporter(samplePath, width, height, false);
+                savedReference = AssetDatabase.LoadAssetAtPath<Texture2D>(samplePath);
+                if (savedReference == null || savedReference.width != width || savedReference.height != height)
+                    throw new InvalidOperationException("Ảnh mẫu sau import không khớp kích thước vùng tô.");
+            }
+
+            // Attach only after all reimports and validation; existing entries stay untouched.
+            added = new ColoringArtworkDefinition
+            {
+                title = artworkName.Trim(), lineArt = savedLine, referenceArt = savedReference,
+                paintMask = savedMask, regionData = savedData, referenceScale = referenceScale,
+                referenceOffset = sourceMode == 1 ? Vector2.zero : referenceOffset, minimumRegionPixels = minimumRegionPixels,
+                whiteThreshold = sourceMode == 1 ? 180 : lineThreshold, regions = Array.Empty<ColoringRegionSeed>()
+            };
+            if (sourceMode == 1) added.referenceScale = 1f;
+            Undo.RecordObject(workshop, "Add Coloring Artwork");
+            var list = workshop.paintings == null ? new List<ColoringArtworkDefinition>()
+                : new List<ColoringArtworkDefinition>(workshop.paintings);
+            list.Add(added);
+            workshop.paintings = list.ToArray();
+            EditorUtility.SetDirty(workshop);
+            EditorSceneManager.MarkSceneDirty(workshop.gameObject.scene);
+        }
+        catch (Exception exception)
+        {
+            // These paths were generated uniquely for this attempt; never remove existing artwork.
+            foreach (string path in createdPaths) AssetDatabase.DeleteAsset(path);
+            added = null;
+            error = "Không thêm tranh: " + exception.Message;
+            return false;
+        }
         artworkName = string.Empty;
         originalImage = null;
         cachedOriginalImage = null;
         referenceArt = null;
         manualStrokes = null;
+        colorAnalysis = null;
+        colorReferencePixels = null;
+        excludedColorRegions.Clear();
         ReleasePreviewTextures();
         Repaint();
+        return true;
+    }
+
+    private void DrawColorAuthoring()
+    {
+        EditorGUI.BeginChangeCheck();
+        float distance = EditorGUILayout.Slider("Mức gộp màu (Lab)", colorMergeDistance, 2f, 40f);
+        int min = EditorGUILayout.IntSlider("Gộp vùng nhỏ dưới (px)", minimumRegionPixels, 1, 2000);
+        bool smooth = EditorGUILayout.Toggle("Giảm nhiễu màu (median 3×3)", smoothLines);
+        if (EditorGUI.EndChangeCheck())
+        {
+            colorMergeDistance = distance; minimumRegionPixels = min; smoothLines = smooth;
+            ReanalyzeArtwork();
+        }
+        int thickness = EditorGUILayout.IntSlider("Độ dày nét (px)", colorLineThickness, 1, 8);
+        if (thickness != colorLineThickness)
+        { colorLineThickness = thickness; RefreshColorPreview(); }
+        EditorGUILayout.HelpBox("Đổi tham số phân vùng hoặc ảnh sẽ xóa các chỉnh sửa vùng. Đổi độ dày nét giữ các vùng đã gộp/loại. Bấm hai vùng kề nhau để gộp; vùng rời nhau không tự gộp dù cùng màu.", MessageType.Info);
+        colorEditMode = GUILayout.Toolbar(colorEditMode, new[] { "Kiểm tra vùng", "Loại / khôi phục", "Gộp 2 vùng kề" });
+        if (GUILayout.Button("Phân tích lại / bỏ chỉnh sửa vùng")) ReanalyzeArtwork();
+        if (colorAnalysisError != null) EditorGUILayout.HelpBox(colorAnalysisError, MessageType.Error);
+        if (colorAnalysis == null) return;
+        EditorGUILayout.LabelField($"{colorAnalysis.RegionCount} mảng màu; {fillableRegionCount} vùng tô; {excludedColorRegions.Count} vùng đã loại; gộp {colorAnalysis.SmallRegionsMerged} vùng nhỏ.");
+        if (lostColorRegions > 0)
+        {
+            EditorGUILayout.HelpBox($"{lostColorRegions} vùng không còn pixel bên trong nét. Giảm độ dày nét, gộp hoặc loại vùng này trước khi lưu.", MessageType.Error);
+            if (GUILayout.Button($"Loại {lostColorRegions} vùng màu hồng không đủ chỗ tô")) ExcludeUnpaintableColorRegions();
+        }
+        DrawColorPreview("Ảnh mẫu gốc", originalImage, false);
+        DrawColorPreview("Ảnh nét", previewLineArt, false);
+        DrawColorPreview("Vùng tô (bấm để sửa)", previewRegionOverlay, true);
+        EditorGUILayout.LabelField(previewProbe, EditorStyles.wordWrappedMiniLabel);
+    }
+
+    private void DrawColorPreview(string title, Texture2D texture, bool interactive)
+    {
+        if (texture == null) return;
+        EditorGUILayout.LabelField(title, EditorStyles.boldLabel);
+        float height = Mathf.Min(340f, Mathf.Max(160f, (position.width - 36f) * texture.height / texture.width));
+        Rect area = GUILayoutUtility.GetRect(260f, height, GUILayout.ExpandWidth(true));
+        EditorGUI.DrawRect(area, new Color(0.15f, 0.15f, 0.15f));
+        Rect image = ContainRect(texture.width, texture.height, area);
+        GUI.DrawTexture(image, texture, ScaleMode.StretchToFill, true);
+        Event e = Event.current;
+        if (!interactive || e.type != EventType.MouseDown || e.button != 0 || !image.Contains(e.mousePosition)) return;
+        int x = Mathf.Clamp((int)((e.mousePosition.x - image.xMin) / image.width * texture.width), 0, texture.width - 1);
+        int y = Mathf.Clamp((int)((image.yMax - e.mousePosition.y) / image.height * texture.height), 0, texture.height - 1);
+        EditColorRegionAt(x, y, colorEditMode);
+        e.Use(); Repaint();
+    }
+
+    // The preview and integration suite call the same edit path.
+    internal void EditColorRegionAt(int x, int y, int mode)
+    {
+        if (colorAnalysis == null || x < 0 || y < 0 || x >= colorAnalysis.Width || y >= colorAnalysis.Height) return;
+        int id = colorAnalysis.Labels[y * colorAnalysis.Width + x];
+        if (id <= 0) { previewProbe = "Nền transparent: không thuộc vùng tô."; return; }
+        if (mode != 2) pendingMergeRegion = 0;
+        if (mode == 1)
+        {
+            if (!excludedColorRegions.Add(id)) excludedColorRegions.Remove(id);
+            RefreshColorPreview();
+        }
+        else if (mode == 2)
+        {
+            if (excludedColorRegions.Contains(id)) { previewProbe = "Khôi phục vùng đã loại trước khi gộp."; return; }
+            if (pendingMergeRegion == 0)
+            { pendingMergeRegion = id; previewProbe = $"Đã chọn #{id}; bấm vùng kề để gộp."; return; }
+            if (!colorAnalysis.MergeAdjacent(pendingMergeRegion, id))
+            { pendingMergeRegion = 0; previewProbe = "Hai vùng phải khác nhau và kề nhau. Bấm chọn lại."; return; }
+            pendingMergeRegion = 0; RefreshColorPreview();
+        }
+        previewProbe = $"Mảng #{id}: {(excludedColorRegions.Contains(id) ? "đã loại" : "được tô")}.";
+    }
+
+    internal void ExcludeUnpaintableColorRegions()
+    {
+        excludedColorRegions.UnionWith(unpaintableColorRegions);
+        pendingMergeRegion = 0;
+        RefreshColorPreview();
+    }
+
+    private void AnalyzeColorArtwork()
+    {
+        colorAnalysis = null; excludedColorRegions.Clear(); pendingMergeRegion = 0;
+        colorReferencePixels = null;
+        colorAnalysisError = null; lostColorRegions = 0;
+        Texture2D readable = null;
+        try
+        {
+            if ((long)originalImage.width * originalImage.height > 4194304)
+                throw new InvalidOperationException("Ảnh trên 4 triệu pixel. Giảm Max Size trong importer rồi phân tích lại.");
+            EditorUtility.DisplayProgressBar("Tạo tranh tô từ ảnh màu", "Đang gộp màu và tách các vùng liên thông…", 0.3f);
+            // GPU readback leaves the original importer and file intact, including non-readable images.
+            RenderTexture previous = RenderTexture.active;
+            RenderTexture rt = RenderTexture.GetTemporary(originalImage.width, originalImage.height, 0, RenderTextureFormat.ARGB32, RenderTextureReadWrite.sRGB);
+            try
+            {
+                Graphics.Blit(originalImage, rt); RenderTexture.active = rt;
+                readable = new Texture2D(originalImage.width, originalImage.height, TextureFormat.RGBA32, false);
+                readable.ReadPixels(new Rect(0, 0, rt.width, rt.height), 0, 0); readable.Apply();
+            }
+            finally { RenderTexture.active = previous; RenderTexture.ReleaseTemporary(rt); }
+            colorReferencePixels = readable.GetPixels32();
+            colorAnalysis = ColorArtworkSegmentation.Analyze(colorReferencePixels, originalImage.width, originalImage.height,
+                colorMergeDistance, minimumRegionPixels, smoothLines);
+            RefreshColorPreview();
+        }
+        catch (Exception e) { colorAnalysisError = "Không phân tích được ảnh màu: " + e.Message; }
+        finally { EditorUtility.ClearProgressBar(); if (readable != null) DestroyImmediate(readable); }
+    }
+
+    private void RefreshColorPreview()
+    {
+        if (colorAnalysis == null) return;
+        ReleasePreviewTextures();
+        ColorArtworkSegmentation.Output result = colorAnalysis.BuildOutput(excludedColorRegions, colorLineThickness);
+        calculatedRegions = result.Regions; fillableRegionCount = result.Regions.Count;
+        maskPixelCount = result.PaintablePixels; lostColorRegions = result.LostRegions;
+        unpaintableColorRegions = result.LostRegionIds;
+        previewLineArt = ColorPreviewTexture(result.Lines, "ColorLinePreview", FilterMode.Bilinear);
+        previewMask = ColorPreviewTexture(result.Mask, "ColorMaskPreview", FilterMode.Point);
+        previewRegionOverlay = ColorPreviewTexture(result.Overlay, "ColorRegionsPreview", FilterMode.Point);
+    }
+
+    private Texture2D ColorPreviewTexture(Color32[] pixels, string name, FilterMode filter)
+    {
+        var texture = new Texture2D(colorAnalysis.Width, colorAnalysis.Height, TextureFormat.RGBA32, false)
+        { name = name, filterMode = filter, wrapMode = TextureWrapMode.Clamp };
+        texture.SetPixels32(pixels); texture.Apply(); return texture;
+    }
+
+    private ColoringRegionDataAsset BuildImportedRegionData(int width, int height,
+        out Color32[] linePixels, out Color32[] maskPixels)
+    {
+        int sourceWidth = previewLineArt.width, sourceHeight = previewLineArt.height;
+        var sourceData = new ColoringRegionDataAsset
+        {
+            width = sourceWidth, height = sourceHeight, regionCount = calculatedRegions.Count,
+            regions = calculatedRegions.ToArray()
+        };
+        int[] sourceLabels = ValidateRegionSpans(sourceData);
+        Color32[] sourceLines = previewLineArt.GetPixels32();
+        Color32[] sourceMask = previewMask.GetPixels32();
+        for (int i = 0; i < sourceLabels.Length; i++)
+            if ((sourceMask[i].r >= 128) != (sourceLabels[i] > 0))
+                throw new InvalidOperationException("Mask preview không khớp nhãn vùng đã phân tích.");
+        var labels = new int[checked(width * height)];
+        linePixels = new Color32[labels.Length];
+        maskPixels = new Color32[labels.Length];
+        var spans = new List<ColoringPixelSpan>[sourceData.regionCount];
+        var counts = new int[spans.Length];
+        var paintable = new bool[spans.Length];
+        for (int i = 0; i < spans.Length; i++) spans[i] = new List<ColoringPixelSpan>();
+        for (int y = 0; y < height; y++)
+        for (int x = 0; x < width; x++)
+        {
+            int sx = (int)(((long)x * 2 + 1) * sourceWidth / (2L * width));
+            int sy = (int)(((long)y * 2 + 1) * sourceHeight / (2L * height));
+            int source = sy * sourceWidth + sx, target = y * width + x;
+            int id = labels[target] = sourceLabels[source];
+            linePixels[target] = sourceLines[source];
+            byte value = (byte)(id > 0 ? 255 : 0);
+            maskPixels[target] = new Color32(value, value, value, 255);
+            if (id > 0)
+            {
+                counts[id - 1]++;
+                if (Luminance(linePixels[target]) > lineThreshold) paintable[id - 1] = true;
+            }
+        }
+        for (int y = 0; y < height; y++)
+        for (int i = y * width; i < (y + 1) * width;)
+        {
+            int start = i, id = labels[i++];
+            while (i < (y + 1) * width && labels[i] == id) i++;
+            if (id > 0) spans[id - 1].Add(new ColoringPixelSpan { start = start, length = i - start });
+        }
+        var regions = new ColoringRegionSpanItem[spans.Length];
+        for (int i = 0; i < regions.Length; i++)
+        {
+            if (counts[i] == 0 || !paintable[i])
+                throw new InvalidOperationException($"Resize đã làm mất vùng tô #{i + 1}. Hãy tăng kích thước import hoặc phân tích lại.");
+            regions[i] = new ColoringRegionSpanItem { id = i + 1, pixelCount = counts[i], spans = spans[i].ToArray() };
+        }
+        return new ColoringRegionDataAsset { width = width, height = height, regionCount = regions.Length, regions = regions };
+    }
+
+    private static int[] ValidateRegionSpans(ColoringRegionDataAsset data)
+    {
+        if (data == null || data.width <= 0 || data.height <= 0 || data.regionCount <= 0
+            || data.regions == null || data.regions.Length != data.regionCount)
+            throw new InvalidOperationException("Dữ liệu vùng tô không hợp lệ.");
+        var labels = new int[checked(data.width * data.height)];
+        var seen = new bool[data.regionCount];
+        foreach (var region in data.regions)
+        {
+            if (region.id < 1 || region.id > seen.Length || seen[region.id - 1]
+                || region.spans == null || region.spans.Length == 0)
+                throw new InvalidOperationException("Nhãn vùng tô không hợp lệ hoặc bị trùng.");
+            seen[region.id - 1] = true;
+            long total = 0;
+            foreach (var span in region.spans)
+            {
+                if (span.start < 0 || span.length <= 0 || (long)span.start + span.length > labels.Length)
+                    throw new InvalidOperationException("Span vùng tô vượt giới hạn ảnh.");
+                for (int p = span.start; p < span.start + span.length; p++)
+                {
+                    if (labels[p] != 0) throw new InvalidOperationException("Span vùng tô bị chồng nhau.");
+                    labels[p] = region.id;
+                }
+                total += span.length;
+            }
+            if (total != region.pixelCount) throw new InvalidOperationException("pixelCount không khớp span vùng tô.");
+        }
+        return labels;
+    }
+
+    private static void ValidateImportedArtwork(ColoringRegionDataAsset data, Texture2D line, Texture2D mask)
+    {
+        int[] labels = ValidateRegionSpans(data);
+        if (line == null || mask == null || line.width != data.width || line.height != data.height
+            || mask.width != data.width || mask.height != data.height)
+            throw new InvalidOperationException("Texture sau import không khớp kích thước JSON vùng tô.");
+        Color32[] pixels = mask.GetPixels32();
+        for (int p = 0; p < labels.Length; p++)
+            if ((pixels[p].r >= 128) != (labels[p] > 0))
+                throw new InvalidOperationException("Mask sau import không khớp nhãn vùng tô.");
+    }
+
+    private static void WritePixels(string path, int width, int height, Color32[] pixels)
+    {
+        var texture = new Texture2D(width, height, TextureFormat.RGBA32, false);
+        try
+        {
+            texture.SetPixels32(pixels);
+            texture.Apply();
+            File.WriteAllBytes(path, texture.EncodeToPNG());
+        }
+        finally { DestroyImmediate(texture); }
+    }
+
+    private static void ConfigureFinalArtworkImporter(string path, int width, int height, bool pointFilter)
+    {
+        var importer = AssetImporter.GetAtPath(path) as TextureImporter;
+        if (importer == null) throw new InvalidOperationException("Không tìm thấy texture importer.");
+        // Generated line/mask are now baked in the cache's pixel grid. Do not resize
+        // again on the project's PC/Android targets or the common mobile/web targets.
+        importer.textureType = TextureImporterType.Default;
+        importer.npotScale = TextureImporterNPOTScale.None;
+        importer.maxTextureSize = Mathf.Max(32, Mathf.NextPowerOfTwo(Mathf.Max(width, height)));
+        importer.isReadable = true;
+        importer.textureCompression = TextureImporterCompression.Uncompressed;
+        importer.crunchedCompression = false;
+        importer.mipmapEnabled = false;
+        importer.filterMode = pointFilter ? FilterMode.Point : FilterMode.Bilinear;
+        importer.wrapMode = TextureWrapMode.Clamp;
+        foreach (string platform in new[] { "Standalone", "Android", "iPhone", "WebGL" })
+            importer.ClearPlatformTextureSettings(platform);
+        importer.SaveAndReimport();
     }
 
     private static string SanitizeFileName(string name)

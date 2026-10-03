@@ -55,7 +55,7 @@ public static class SetupGalleryNPCTool
 
     private static MinigameTrigger FindWorkshop(GameObject panel)
     {
-        foreach (var trigger in Object.FindObjectsByType<MinigameTrigger>(FindObjectsInactive.Include, FindObjectsSortMode.None))
+        foreach (var trigger in Object.FindObjectsByType<MinigameTrigger>(FindObjectsInactive.Include))
             if (trigger.minigameUI == panel) return trigger;
         return null;
     }
@@ -190,11 +190,11 @@ public static class SetupGalleryNPCTool
             foreach (var renderer in root.GetComponentsInChildren<SkinnedMeshRenderer>(true))
                 report.AppendLine($"  CHARACTER {renderer.name}: bounds {renderer.bounds}");
         }
-        foreach (var table in Object.FindObjectsByType<MinigameTrigger>(FindObjectsInactive.Include, FindObjectsSortMode.None))
+        foreach (var table in Object.FindObjectsByType<MinigameTrigger>(FindObjectsInactive.Include))
             report.AppendLine($"WORKSHOP {table.name}: position {table.transform.position}, bounds {table.GetComponent<Collider>().bounds}, UI {table.minigameUI}");
-        foreach (var player in Object.FindObjectsByType<PlayerController>(FindObjectsInactive.Include, FindObjectsSortMode.None))
+        foreach (var player in Object.FindObjectsByType<PlayerController>(FindObjectsInactive.Include))
             report.AppendLine($"PLAYER {player.name}: position {player.transform.position}, scale {player.transform.lossyScale}");
-        foreach (var collider in Object.FindObjectsByType<Collider>(FindObjectsSortMode.None))
+        foreach (var collider in Object.FindObjectsByType<Collider>())
         {
             if (!collider.isTrigger && collider.bounds.size.y < 0.6f && collider.bounds.size.x > 4f)
                 report.AppendLine($"FLOOR? {collider.name}: {collider.bounds}");

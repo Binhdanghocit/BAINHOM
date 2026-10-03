@@ -37,13 +37,14 @@ public class MobileControlsOverlay : MonoBehaviour
     private RectTransform knob;
 
     private int moveFingerId = -1;
+    private bool moveHasDragged;
     private int lookFingerId = -1;
     private int jumpFingerId = -1;
     private int pinchIdA = -1;
     private int pinchIdB = -1;
     private float prevPinchDist;
     private bool prevPinchValid;
-    private Vector2 moveStart;
+    private Vector2 previousCanvasSize;
     private Vector2 jumpStart;
     private float jumpTouchStartTime;
 
@@ -164,6 +165,14 @@ public class MobileControlsOverlay : MonoBehaviour
     }
     private void Update()
     {
+        Vector2 canvasSize = ((RectTransform)transform).rect.size;
+        if (canvasSize != previousCanvasSize)
+        {
+            previousCanvasSize = canvasSize;
+            moveFingerId = -1;
+            Move = Vector2.zero;
+            HideStick();
+        }
         if (!PlatformHelper.IsTouchDevice() || !gameplayInputEnabled) return;
 
         // Quét trước: 2 ngón cùng lúc trên nửa phải (trừ vùng Nhảy) = nhúm zoom.
@@ -186,8 +195,7 @@ public class MobileControlsOverlay : MonoBehaviour
                 else if (touch.position.x < Screen.width * 0.5f && moveFingerId < 0)
                 {
                     moveFingerId = touch.fingerId;
-                    moveStart = touch.position;
-                    ShowStickAt(FloatingJoystickEnabled ? moveStart : (Vector2?)null);
+                    ShowStickAt(FloatingJoystickEnabled ? touch.position : (Vector2?)null);
                 }
                 else if (lookFingerId < 0)
                 {
@@ -205,9 +213,7 @@ public class MobileControlsOverlay : MonoBehaviour
                 }
                 else
                 {
-                    Vector2 offset = (touch.position - moveStart) / stickRadius;
-                    Move = Vector2.ClampMagnitude(offset, 1f);
-                    UpdateKnob(Move);
+                    UpdateJoystickTouch(touch.position, touch.phase);
                 }
             }
             else if (touch.fingerId == lookFingerId)
@@ -332,14 +338,16 @@ public class MobileControlsOverlay : MonoBehaviour
 
         if (screenPos.HasValue)
         {
-            RectTransformUtility.ScreenPointToLocalPointInRectangle((RectTransform)transform, screenPos.Value, null, out Vector2 local);
+            RectTransformUtility.ScreenPointToLocalPointInRectangle((RectTransform)transform, screenPos.Value, InputCamera(), out Vector2 local);
             RectTransform canvasRect = (RectTransform)transform;
             Vector2 bottomLeftOrigin = local + canvasRect.rect.size * canvasRect.pivot;
 
             // Giữ joystick không tràn ra ngoài mép màn hình
-            Vector2 half = stickRoot.sizeDelta * 0.5f;
-            bottomLeftOrigin.x = Mathf.Clamp(bottomLeftOrigin.x, half.x, canvasRect.rect.width * 0.5f - half.x);
-            bottomLeftOrigin.y = Mathf.Clamp(bottomLeftOrigin.y, half.y, canvasRect.rect.height - half.y);
+            Vector2 half = stickRoot.rect.size * 0.5f;
+            float maxX = canvasRect.rect.width * 0.5f - half.x;
+            float maxY = canvasRect.rect.height - half.y;
+            bottomLeftOrigin.x = maxX >= half.x ? Mathf.Clamp(bottomLeftOrigin.x, half.x, maxX) : canvasRect.rect.width * 0.25f;
+            bottomLeftOrigin.y = maxY >= half.y ? Mathf.Clamp(bottomLeftOrigin.y, half.y, maxY) : canvasRect.rect.height * 0.5f;
 
             stickRoot.anchorMin = Vector2.zero;
             stickRoot.anchorMax = Vector2.zero;
@@ -353,6 +361,38 @@ public class MobileControlsOverlay : MonoBehaviour
         }
 
         UpdateKnob(Vector2.zero);
+    }
+
+    private Camera InputCamera()
+    {
+        Canvas canvas = GetComponentInParent<Canvas>();
+        return canvas != null && canvas.renderMode != RenderMode.ScreenSpaceOverlay ? canvas.worldCamera : null;
+    }
+
+    private float JoystickRadius()
+    {
+        if (stickRoot == null) return 0f;
+        Vector2 travel = stickRoot.rect.size * 0.5f - (knob != null ? knob.rect.size * 0.5f : Vector2.zero);
+        return Mathf.Max(0f, Mathf.Min(stickRadius, Mathf.Min(travel.x, travel.y)));
+    }
+
+    private Vector2 CalculateJoystickMove(Vector2 screenPosition)
+    {
+        float radius = JoystickRadius();
+        if (radius <= 0f || !RectTransformUtility.ScreenPointToLocalPointInRectangle(
+            stickRoot, screenPosition, InputCamera(), out Vector2 local)) return Vector2.zero;
+        // Displayed center after clamp and the radius both use stick-local units.
+        return Vector2.ClampMagnitude((local - stickRoot.rect.center) / radius, 1f);
+    }
+
+    private void UpdateJoystickTouch(Vector2 screenPosition, TouchPhase phase)
+    {
+        if (phase == TouchPhase.Began) moveHasDragged = false;
+        if (phase == TouchPhase.Moved) moveHasDragged = true;
+        // Clamping the floating base away from the initial touch must not start
+        // locomotion by itself. Once dragged, use the actual visible center.
+        Move = moveHasDragged ? CalculateJoystickMove(screenPosition) : Vector2.zero;
+        UpdateKnob(Move);
     }
 
     private void HideStick()
@@ -373,7 +413,6 @@ public class MobileControlsOverlay : MonoBehaviour
     private void UpdateKnob(Vector2 normalizedMove)
     {
         if (knob == null || stickRoot == null) return;
-        Vector2 radius = stickRoot.rect.size * 0.5f;
-        knob.anchoredPosition = normalizedMove * (radius - knob.sizeDelta * 0.5f);
+        knob.anchoredPosition = normalizedMove * JoystickRadius();
     }
 }

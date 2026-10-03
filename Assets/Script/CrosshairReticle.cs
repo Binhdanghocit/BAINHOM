@@ -189,6 +189,11 @@ public class CrosshairReticle : MonoBehaviour
         {
             if (PlayerDetector.IsPlayer(hit.collider)) continue;
             NPCInteractable npc = hit.collider.GetComponentInParent<NPCInteractable>();
+            if (npc != null && !npc.isActiveAndEnabled)
+            {
+                if (!hit.collider.isTrigger) return null;
+                continue;
+            }
             if (npc != null && !npc.IsInteractionCollider(hit.collider)) continue;
             InteractableOutline outline = hit.collider.GetComponentInParent<InteractableOutline>();
             DoorMenuTrigger door = hit.collider.GetComponentInParent<DoorMenuTrigger>();

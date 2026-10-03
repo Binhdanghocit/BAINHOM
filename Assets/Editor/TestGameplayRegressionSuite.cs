@@ -322,7 +322,8 @@ public static class TestGameplayRegressionSuite
         Call(b, "OnDisable");
         Call(b.GetComponent<InteractableOutline>(), "OnDisable");
         Check(!dialogue.IsSpeaking && !player.enabled, "Canceling the disabled NPC unlocked movement under Settings.");
-        Check(Get<int>(dialogue, "promptRequests") == 0 && !Get<GameObject>(dialogue, "prompt").activeSelf,
+        Check(Get<int>(dialogue, "promptRequests") == 0 &&
+            !Array.Exists(dialogue.GetComponentsInChildren<Transform>(true), child => child.name == "InteractPrompt"),
             "Disabled NPCs left a prompt visible.");
         settings.ClosePanel();
     }

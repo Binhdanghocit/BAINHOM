@@ -47,7 +47,7 @@ public class PlayerInteraction : MonoBehaviour
         }
         if (DoorMenuTrigger.IsAnyOpen)
         {
-            foreach (var door in FindObjectsByType<DoorMenuTrigger>(FindObjectsSortMode.None))
+            foreach (var door in FindObjectsByType<DoorMenuTrigger>())
             {
                 if (!door.IsOpen) continue;
                 door.CloseMinigame();
@@ -58,7 +58,7 @@ public class PlayerInteraction : MonoBehaviour
         }
         if (MinigameTrigger.IsAnyOpen)
         {
-            foreach (var workshop in FindObjectsByType<MinigameTrigger>(FindObjectsSortMode.None))
+            foreach (var workshop in FindObjectsByType<MinigameTrigger>())
                 if (workshop.IsMinigameOpen) { workshop.CloseMinigame(); return; }
             return;
         }
@@ -171,6 +171,14 @@ public class PlayerInteraction : MonoBehaviour
             if (PlayerDetector.IsPlayer(hit.collider) || hitTransform.IsChildOf(transform))
                 continue;
 
+            NPCInteractable npc = hit.collider.GetComponentInParent<NPCInteractable>();
+            if (npc != null && !npc.isActiveAndEnabled)
+            {
+                // Disabled NPC volumes are skipped; their solid bodies still block sight.
+                if (!hit.collider.isTrigger) return;
+                continue;
+            }
+
             PaintingTrigger pTrigger = hit.collider.GetComponent<PaintingTrigger>();
             if (pTrigger == null) pTrigger = hit.collider.GetComponentInParent<PaintingTrigger>();
             if (pTrigger != null)
@@ -199,8 +207,6 @@ public class PlayerInteraction : MonoBehaviour
 
             if (DialogueUIManager.Instance != null)
             {
-                NPCInteractable npc = hit.collider.GetComponent<NPCInteractable>();
-                if (npc == null) npc = hit.collider.GetComponentInParent<NPCInteractable>();
                 if (npc != null)
                 {
                     if (!npc.IsInteractionCollider(hit.collider)) continue;

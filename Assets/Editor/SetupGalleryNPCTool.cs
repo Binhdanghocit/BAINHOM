@@ -11,6 +11,7 @@ public static class SetupGalleryNPCTool
     private const string PrefabFolder = "Assets/Prefabs";
     private const string ModelPath = "Assets/Low Poly Girl/FBX/low_poly_girl .fbx";
     private const string PlayerPrefabPath = "Assets/low_poly_girl  (unlit shader).prefab";
+    private const string GuideVisualPath = "Assets/Characters/BusinessMan/BusinessManVisual.prefab";
 
     // Batch entry point edits the saved gallery; it never relies on unsaved Editor state.
     public static void ConfigureSavedGallery()
@@ -94,10 +95,15 @@ public static class SetupGalleryNPCTool
     private static void CreateNPCPrefab(string name, string displayName, string[] lines)
     {
         string path = PrefabFolder + "/" + name + ".prefab";
-        if (AssetDatabase.LoadAssetAtPath<GameObject>(path) != null) return;
+        bool isGuide = name == "GalleryGuide";
+        if (AssetDatabase.LoadAssetAtPath<GameObject>(path) != null)
+        {
+            if (isGuide) UpdateGuideVisual(path);
+            return;
+        }
         GameObject model = AssetDatabase.LoadAssetAtPath<GameObject>(ModelPath);
         GameObject playerPrefab = AssetDatabase.LoadAssetAtPath<GameObject>(PlayerPrefabPath);
-        if (model == null || playerPrefab == null) throw new System.InvalidOperationException("NPC character model is missing.");
+        if (!isGuide && (model == null || playerPrefab == null)) throw new System.InvalidOperationException("NPC character model is missing.");
         var root = new GameObject(name, typeof(CapsuleCollider), typeof(Rigidbody));
         try
         {
@@ -113,26 +119,30 @@ public static class SetupGalleryNPCTool
             rigidbody.isKinematic = true;
             rigidbody.useGravity = false;
             rigidbody.constraints = RigidbodyConstraints.FreezeAll;
-            GameObject visual = (GameObject)PrefabUtility.InstantiatePrefab(model, root.transform);
-            visual.name = "Character Visual";
-            visual.transform.localPosition = Vector3.zero;
-            visual.transform.localRotation = Quaternion.identity;
-            visual.transform.localScale = Vector3.one;
-            foreach (var renderer in visual.GetComponentsInChildren<SkinnedMeshRenderer>())
+            if (isGuide) AddGuideVisual(root.transform);
+            else
             {
-                foreach (var source in playerPrefab.GetComponentsInChildren<SkinnedMeshRenderer>(true))
-                    if (renderer.name == source.name) { renderer.sharedMaterials = source.sharedMaterials; break; }
-                PrefabUtility.RecordPrefabInstancePropertyModifications(renderer);
+                GameObject visual = (GameObject)PrefabUtility.InstantiatePrefab(model, root.transform);
+                visual.name = "Character Visual";
+                visual.transform.localPosition = Vector3.zero;
+                visual.transform.localRotation = Quaternion.identity;
+                visual.transform.localScale = Vector3.one;
+                foreach (var renderer in visual.GetComponentsInChildren<SkinnedMeshRenderer>())
+                {
+                    foreach (var source in playerPrefab.GetComponentsInChildren<SkinnedMeshRenderer>(true))
+                        if (renderer.name == source.name) { renderer.sharedMaterials = source.sharedMaterials; break; }
+                    PrefabUtility.RecordPrefabInstancePropertyModifications(renderer);
+                }
+                var animator = visual.GetComponent<Animator>();
+                var sourceAnimator = playerPrefab.GetComponent<Animator>();
+                if (animator != null && sourceAnimator != null)
+                {
+                    animator.runtimeAnimatorController = sourceAnimator.runtimeAnimatorController;
+                    animator.applyRootMotion = false;
+                    PrefabUtility.RecordPrefabInstancePropertyModifications(animator);
+                }
+                PrefabUtility.RecordPrefabInstancePropertyModifications(visual.transform);
             }
-            var animator = visual.GetComponent<Animator>();
-            var sourceAnimator = playerPrefab.GetComponent<Animator>();
-            if (animator != null && sourceAnimator != null)
-            {
-                animator.runtimeAnimatorController = sourceAnimator.runtimeAnimatorController;
-                animator.applyRootMotion = false;
-                PrefabUtility.RecordPrefabInstancePropertyModifications(animator);
-            }
-            PrefabUtility.RecordPrefabInstancePropertyModifications(visual.transform);
             var npc = root.AddComponent<NPCInteractable>();
             npc.npcName = displayName;
             npc.dialogueLines = lines;
@@ -141,6 +151,41 @@ public static class SetupGalleryNPCTool
                 throw new System.InvalidOperationException("Could not save NPC prefab: " + path);
         }
         finally { Object.DestroyImmediate(root); }
+    }
+
+    private static void UpdateGuideVisual(string path)
+    {
+        GameObject expected = AssetDatabase.LoadAssetAtPath<GameObject>(GuideVisualPath);
+        if (expected == null) throw new System.InvalidOperationException("Business Man visual is missing: " + GuideVisualPath);
+        GameObject contents = PrefabUtility.LoadPrefabContents(path);
+        try
+        {
+            Transform previous = contents.transform.Find("Character Visual");
+            if (previous != null && PrefabUtility.GetCorrespondingObjectFromSource(previous.gameObject) == expected) return;
+            if (previous != null) Object.DestroyImmediate(previous.gameObject);
+            AddGuideVisual(contents.transform);
+            if (PrefabUtility.SaveAsPrefabAsset(contents, path) == null)
+                throw new System.InvalidOperationException("Could not update guide visual: " + path);
+        }
+        finally { PrefabUtility.UnloadPrefabContents(contents); }
+    }
+
+    private static void AddGuideVisual(Transform parent)
+    {
+        GameObject model = AssetDatabase.LoadAssetAtPath<GameObject>(GuideVisualPath);
+        if (model == null) throw new System.InvalidOperationException("Business Man visual is missing: " + GuideVisualPath);
+        GameObject visual = (GameObject)PrefabUtility.InstantiatePrefab(model, parent);
+        visual.name = "Character Visual";
+        visual.transform.localPosition = Vector3.zero;
+        visual.transform.localRotation = Quaternion.identity;
+        visual.transform.localScale = Vector3.one;
+        foreach (var animator in visual.GetComponentsInChildren<Animator>(true))
+        {
+            animator.applyRootMotion = false;
+            PrefabUtility.RecordPrefabInstancePropertyModifications(animator);
+        }
+        PrefabUtility.RecordPrefabInstancePropertyModifications(visual);
+        PrefabUtility.RecordPrefabInstancePropertyModifications(visual.transform);
     }
 
     private static void ConfigureInstance(string name, Vector3 position, float yaw, MinigameTrigger workshop)
@@ -154,6 +199,8 @@ public static class SetupGalleryNPCTool
             Undo.RegisterCreatedObjectUndo(instance, "Add gallery NPC");
         }
         var npc = instance.GetComponent<NPCInteractable>();
+        // Visual refresh must preserve existing per-scene workshop assignments.
+        if (workshop == null || npc.workshopTrigger != null) return;
         Undo.RecordObject(npc, "Assign NPC workshop");
         npc.workshopTrigger = workshop;
         PrefabUtility.RecordPrefabInstancePropertyModifications(npc);

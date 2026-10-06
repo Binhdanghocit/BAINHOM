@@ -1,6 +1,6 @@
 # Hướng dẫn setup và bàn giao BAINHOM
 
-Dự án triển lãm tranh Đông Hồ dùng workshop tô vùng kín bằng `ColoringPageMinigame`: chọn màu rồi bấm vào vùng trong ảnh nét. Không cần cắt ảnh thành các nút mảnh tranh. Hướng dẫn áp dụng cho **Unity 6000.5.9f1**, cập nhật ngày 03/10/2026.
+Dự án triển lãm tranh Đông Hồ dùng workshop tô vùng kín bằng `ColoringPageMinigame`: chọn màu rồi bấm vào vùng trong ảnh nét. Không cần cắt ảnh thành các nút mảnh tranh. Hướng dẫn áp dụng cho **Unity 6000.5.9f1**, cập nhật ngày 04/10/2026.
 
 ## 1. Mở dự án và chạy lần đầu
 
@@ -21,7 +21,7 @@ Các scene hiện có đã được cấu hình. Chỉ chạy setup cho phần c
 |---|---|---|---|
 | **Setup Workshop Tô Màu** | Scene cần workshop, dừng Play | Tạo/tái sử dụng WorkshopColoringCanvas, panel, safe area, khung ảnh nét/mẫu, palette, chọn tranh và nút; nối ColoringPageMinigame và cửa tìm thấy. Giữ danh sách tranh hiện có; danh sách mới trống. Bỏ Instructions, để panel đóng. Có thể bật Read/Write cho ảnh mặc định của tool. | Kiểm tham chiếu cửa/bàn, thêm tranh, Ctrl+S. Tool có thể đặt lại style/vị trí UI tùy chỉnh. |
 | **Workshop tô màu > Thêm cặp tranh** | Có ColoringPageMinigame, dừng Play | Mở cửa sổ authoring; khi bấm thêm, tạo tài nguyên cạnh ảnh nguồn và append một mục vào workshop. | Kiểm preview, lưu scene; xem phần 3–5. |
-| **Setup Gallery NPCs** | Đúng SampleScene, workshop có panel; model NPC đầy đủ | Tạo prefab GalleryGuide/GalleryVisitor trong Assets/Prefabs nếu thiếu; thêm instance còn thiếu, tìm/tạo bàn workshop, nối hướng dẫn viên tới bàn. NPC mới có vị trí/lời thoại mẫu. | Kiểm collider, lời thoại và workshopTrigger, Ctrl+S. Prefab được tạo trên disk; Undo scene không thay thế việc quản lý asset. |
+| **Setup Gallery NPCs** | Đúng SampleScene, workshop có panel; có BusinessManVisual.prefab và model khách tham quan | Tạo prefab/instance còn thiếu; riêng GalleryGuide cập nhật visual sang Business Man cả khi prefab đã tồn tại. Giữ lời thoại, collider, vị trí và liên kết workshop đã gán; chỉ nối bàn khi hướng dẫn viên chưa có liên kết. Khách tham quan giữ model cũ. | Kiểm collider, lời thoại và workshopTrigger, Ctrl+S. Prefab được cập nhật trên disk; Undo scene không thay thế việc quản lý asset. |
 | **Tự Động Setup 3 Nút Menu Cánh Cửa (Panel_DoorMenu)** | Có cửa tên cua hoặc DoorMenuTrigger; có panel gán doorMenuUI hoặc Panel_DoorMenu dưới cửa | Cập nhật chữ/font tiếng Việt, ba nút/callback và DoorMenuLayout; tái sử dụng hierarchy, giữ collider đã có, để menu đóng. | Kiểm minigameUI trỏ workshop; Ctrl+S. Nếu thiếu panel, gán panel hiện có trước. |
 
 Scene mới: setup workshop trước, nối panel vào bàn/cửa, rồi setup NPC và menu cửa. Tool không tự tìm mọi đối tượng hoặc vị trí phù hợp cho level mới. Có nhiều workshop thì chọn đúng component trong ô Workshop, không chỉ dựa vào nút Tìm.
@@ -55,27 +55,31 @@ Tool gộp màu gần nhau, tách mảng liên thông rồi sinh nét từ ranh 
 
 1. Import ảnh nguồn vào Assets. Dừng Play, mở Thêm cặp tranh.
 2. Chọn đúng Workshop, nhập tên và chọn **Tạo tranh tô từ ảnh màu**.
-3. Kéo texture vào Ảnh tranh gốc. Không cần chọn thêm mẫu; tool tạo bản mẫu riêng từ pixel texture đã import.
+3. Kéo texture vào Ảnh tranh gốc. Không cần chọn thêm mẫu; tool tạo bản mẫu riêng từ pixel texture đã import. Mặc định **Nét theo biên mảng màu**: mảng đen cũng có interior trắng để tô; độ tối không tự quyết định nét.
 4. Chỉnh tham số trước khi sửa vùng:
 
    | Tham số | Ý nghĩa |
    |---|---|
    | **Mức gộp màu (Lab)**, 2–40 | Khoảng cách màu để gộp, không phải số màu đầu ra. Tăng để gom texture/màu gần; giảm để giữ khác biệt. Mặc định 24. |
-   | **Gộp vùng nhỏ dưới (px)**, 1–2000 | Diện tích mảng nhỏ hấp thụ vào vùng kề. Tăng để giảm vụn nhưng có thể mất chi tiết có chủ ý. Có thể thử 200 với tranh texture rồi điều chỉnh. |
-   | **Giảm nhiễu màu (median 3×3)** | Giảm hạt màu trước phân vùng; có thể mất chi tiết một pixel. |
-   | **Độ dày nét (px)**, 1–8 | Bề dày ranh giới sinh ra. Bắt đầu ở 1; kiểm vùng nhỏ trước khi tăng. |
+   | **Gộp vùng nhỏ dưới (px)**, 1–2000 | Diện tích mảng nhỏ xét gộp vào vùng kề; chi tiết có màu và cạnh tương phản rõ được bảo vệ kể cả dưới ngưỡng. Tăng để giảm vụn nhưng phải kiểm chi tiết có chủ ý. Có thể thử 200 với tranh texture rồi điều chỉnh. |
+   | **Giảm nhiễu giữ cạnh**, 0–1 | Lọc có trọng số theo khoảng cách màu/vị trí; không trộn qua nét tối được bảo vệ. Tăng để giảm texture. |
+   | **Giữ cạnh**, 0–1 | Tăng để bảo vệ ranh giới rõ khi lọc/gộp; mức cao có thể giữ cả nhiễu. |
+   | **Độ dày nét sinh (px)**, 1–8 | Chỉ điều khiển biên sinh mới; nét tối gốc giữ bề dày gốc. Bắt đầu ở 1. |
 
-5. Xem ba preview **Ảnh mẫu gốc**, **Ảnh nét**, **Vùng tô (bấm để sửa)**. Cùng màu ở hai vị trí rời nhau vẫn là mảng riêng; nét có thể chia một mảng thành nhiều interior rời, xuất thành vùng tô riêng.
+5. Chọn preset **Màu phẳng / Tranh có texture / Ảnh chụp** trước khi sửa vùng; preset đổi các tham số và reset chỉnh sửa. Cả ba preset mặc định không coi vùng tối là nét. Xem **Ảnh nguồn (trước lọc)**, **Sau lọc giữ cạnh** hoặc **Nét chồng ảnh nguồn**, **Ảnh trắng để tô / vẽ nét ngăn**, **Vùng tô (bấm để sửa)**. Dùng **Zoom preview** và thanh cuộn để kiểm chi tiết; bấm vùng trên preview đã zoom vẫn dùng grid nguồn. Cùng màu ở hai vị trí rời nhau vẫn là mảng riêng; nét có thể chia một mảng thành nhiều interior rời, xuất thành vùng tô riêng.
 6. Chọn **Kiểm tra vùng**, bấm preview vùng để đọc thông tin. Màu pastel là mã vùng, không phải palette bắt buộc.
 7. Chọn **Loại / khôi phục**, bấm nền/mảng không cần tô. Vùng đã loại hiển thị xám, không nhận tô; bấm lại để khôi phục. Nền trắng vẫn cần quyết định có tô hay không; pixel alpha dưới 128 tự loại.
-8. Chọn **Gộp 2 vùng kề**, bấm lần lượt hai mảng sát nhau. Tool từ chối vùng rời nhau hoặc đã loại; khôi phục trước nếu cần gộp. Kiểm lại nét sau khi gộp.
-9. Xử lý hết vùng hồng, bấm **Thêm tranh vào workshop**, kiểm asset và Ctrl+S.
+8. Chọn **Gộp vùng**, bấm lần lượt hai mảng sát nhau. Tool từ chối vùng rời nhau hoặc đã loại; khôi phục trước nếu cần gộp. Kiểm lại nét sau khi gộp.
+9. Nếu một mảng thiếu nét nội bộ, chọn **Vẽ nét ngăn** rồi kéo trên ảnh trắng để chia vùng; bán kính 0 tạo nét 1 pixel. **Xóa nét vẽ tay** chỉ xóa nét mình thêm, không xóa biên tự sinh. Mask và spans được cập nhật từ cùng nhãn màu sau khi cắt bằng nét, không nhận diện màu lại.
+10. Xử lý hết vùng hồng, bấm **Thêm tranh vào workshop**, kiểm asset và Ctrl+S.
+
+**Giữ nét tối gốc (tùy chọn)** mặc định tắt. Chỉ bật nếu muốn giữ nét gốc không tô; preview bổ sung đánh dấu đỏ toàn bộ pixel bị giữ làm nét để kiểm có nuốt mảng màu tối không. Tắt lại để mảng đen có interior trắng; đổi tùy chọn phải phân tích lại và reset sửa tay. **Làm mượt biên yếu** hạn chế răng cưa ở cạnh ít tương phản. **Nối khe nét nhạt 1 px** là tùy chọn: chỉ nối hai đầu nét có dấu xám ở khe; không tự khép khoảng trắng sáng có chủ ý. Nút Cancel trong progress bar hủy phân tích/sinh preview, chưa lưu tài nguyên. Xử lý giới hạn 30 giây mỗi giai đoạn phân vùng/sinh output; quá hạn cần giảm kích thước hoặc tham số.
 
 ### Vùng hồng và reset chỉnh sửa
 
 **Hồng báo mảng bị nét chiếm hết phần bên trong, không còn pixel để tô. Tool chặn lưu khi còn mảng này.** Giảm độ dày nét, gộp với vùng kề thích hợp, hoặc chủ động loại nếu là chi tiết không cần tô. Nút **Loại … vùng màu hồng không đủ chỗ tô** loại các mảng đang mất; xem ảnh trước vì chúng sẽ không còn cần tô.
 
-Đổi **ảnh/chế độ nguồn/Lab/diện tích vùng nhỏ/median**, hoặc bấm **Phân tích lại / bỏ chỉnh sửa vùng**, sẽ reset các chỉnh sửa gộp/loại. Chọn tham số này trước rồi mới sửa tay. Đổi **độ dày nét** giữ chỉnh sửa nhưng có thể tạo vùng hồng mới, phải kiểm lại.
+Đổi **preset/ảnh/chế độ nguồn/giảm nhiễu/Lab/giữ cạnh/diện tích vùng nhỏ/tùy chọn nét và biên**, hoặc bấm **Phân tích lại / bỏ chỉnh sửa vùng**, sẽ reset các chỉnh sửa gộp/loại và nét vẽ tay. Chọn tham số này trước rồi mới sửa tay. Đổi **độ dày nét** giữ chỉnh sửa nhưng có thể tạo vùng hồng mới, phải kiểm lại.
 
 ### Asset sinh ra
 
@@ -86,7 +90,7 @@ Tài nguyên nằm **cạnh ảnh nguồn**, theo tên tranh đã chuẩn hóa:
 | `<Tên>_LineArt.png` | Ảnh nét dùng trong workshop. |
 | `<Tên>_PaintMask.png` | Pixel được phép tô. |
 | `<Tên>_RegionData.json` | Kích thước, nhãn, span và số pixel; runtime dùng cache. |
-| `<Tên>_Reference.png` | Chỉ chế độ ảnh màu: bản mẫu cùng grid với nét, giữ màu trước median. |
+| `<Tên>_Reference.png` | Chỉ chế độ ảnh màu: bản mẫu cùng grid với nét, giữ màu trước lọc giữ cạnh. |
 
 Tên trùng tạo đường dẫn mới, không ghi đè nguồn/entry cũ. Muốn thay tranh đã có: tạo mục mới, kiểm trong game rồi chỉnh danh sách paintings trong Inspector và lưu scene.
 
@@ -158,7 +162,7 @@ Các modal khóa controller desktop/mobile và locomotion VR. Đóng một trong
 | Thêm tranh bị khóa | Dừng Play; đủ workshop/tên/ảnh asset/vùng tô; xử lý hết vùng hồng/lỗi phân tích. |
 | Tô lan vùng khác | Preview có chung nhãn do khe/gộp. Ảnh nét: khép khe/vẽ ngăn. Ảnh màu: giảm Lab, kiểm gộp rồi tạo bộ mới. |
 | Nền vẫn tô được | Ảnh màu: Loại / khôi phục để loại nền, kiểm xám trước lưu. |
-| Quá nhiều vùng vụn | Median/tăng Lab/vùng nhỏ/gộp kề; kiểm không mất chi tiết có chủ ý. |
+| Quá nhiều vùng vụn | Lọc giữ cạnh/tăng Lab/vùng nhỏ/gộp kề; kiểm không mất chi tiết có chủ ý. |
 | regionData không hợp lệ/fallback | Line/mask/JSON phải cùng grid/cùng entry. Không sửa width/height riêng; tạo lại cả bộ và kiểm cache. Giữ bản cũ tới khi bản mới đạt. |
 | Mẫu lệch/nhỏ | Căn cặp đã thêm, kiểm pixel/crop nguồn. Không sửa transform do layout quản lý lúc chạy. |
 | Tiếng Việt thiếu dấu | Kiểm font TMP/glyph. Menu cửa dùng LiberationSans động; có thể chạy setup cửa cập nhật UI. |
@@ -175,9 +179,32 @@ Log hiện tại có thể ở `Logs/Editor.log`, `Logs/upm.log` trong dự án;
 
 **Lưu scene/asset trước test; ưu tiên bản sao dự án.** Không mở batch test vào dự án đang dùng trong Editor.
 
+### Manifest cho batch tranh và checkout mới
+
+Đầu vào của `BatchSourceArtwork` và `TestAllSourceArtworks` nằm trong **Assets/Editor/ArtworkBatchData**, được lưu cùng Git và `.meta`:
+
+- `Inventory.json`: danh sách 40 nguồn, đường dẫn tương đối trong Assets và tham số preview ban đầu.
+- `Retry.json`: ba mục có preset thử lại. Chạy Preview trước Retry để có kết quả ban đầu.
+- `Reviewed.json`: quyết định từng nguồn; chỉ chín mục `approved` được export. Không tự đổi mục bị loại thành approved.
+- `Exported.json`: snapshot đã review, gồm đường dẫn line/mask/reference/JSON của chín bộ asset trong **Assets/ColoringArtworks/Generated**. Test dùng snapshot này, không cần preview local.
+
+Ảnh nguồn được lưu trong Assets; không đổi đường dẫn sang thư mục Downloads hoặc ổ đĩa cá nhân. `ArtPreviews` là artifact local được Git bỏ qua. Các lệnh mới tạo preview, báo lỗi và kết quả trong **Logs/ArtworkBatch**, cũng được bỏ qua; không ghi lại các manifest đầu vào khi chạy.
+
+Trên bản sao checkout, mở bằng Unity 6000.5.9f1 và đợi import/package resolve. Có thể dùng `-batchmode -projectPath "<đường dẫn bản sao>" -executeMethod <entry> -logFile "<đường dẫn log>"` với Unity.exe của phiên bản này. Các entry dưới đây **tự thoát Editor**; chạy từng lệnh, đợi hoàn tất trước lệnh kế tiếp:
+
+| Entry | Công dụng và đầu ra |
+|---|---|
+| `TestAllSourceArtworks.BeginMain` | Audit grid/spans/cache, selector và tô/giữ tiến độ trong MainMenu; ghi Logs/ArtworkBatch/Play-MainMenu.txt. |
+| `TestAllSourceArtworks.BeginSample` | Cùng kiểm tra cho SampleScene; ghi Play-SampleScene.txt. Hai test không lưu scene. |
+| `BatchSourceArtwork.Preview` | Tạo preview theo Inventory; ghi từng thư mục nguồn và Previews.json trong Logs/ArtworkBatch. |
+| `BatchSourceArtwork.Retry` | Đọc Previews.json vừa tạo và Retry.json đã lưu; giữ ảnh lượt đầu, thử lại ba mục. |
+| `BatchSourceArtwork.Export` | Đọc Reviewed.json; tạo asset còn thiếu và thêm vào cả hai scene, **có lưu scene**. Chỉ chạy trên bản sao khi kiểm lại; không chạy để xem preview. Ghi Exported.json trong Logs/ArtworkBatch. |
+
+Khi thêm hoặc thay nguồn đã được review: cập nhật inventory/preset/quyết định, tạo preview và review hình trước Export. Kiểm output Exported.json với asset thực; chỉ sau review mới cập nhật snapshot **Assets/Editor/ArtworkBatchData/Exported.json**, import JSON và giữ `.meta` hiện có. Không dùng số assertion để tự phê duyệt nguồn mới. Commit ảnh nguồn, asset sinh ra, snapshot và scene cần thiết; không commit Logs/ArtPreviews hoặc bản sao kiểm thử.
+
 **Tools > Tests > Run Gameplay Regression Suite**, **Run Coloring Workshop Test Suite**, **Run All Review Checks** là kiểm Editor thông thường. Coloring có test tự chạy sau reload; đọc kết quả, phân biệt cảnh báo dự kiến.
 
-**Run Saved Artwork Region Play Mode có thể thoát Editor khi xong.** Các entry tự động trong TestColorReferenceAuthoring, TestArtworkAuthoringDimensions, TestMainMenuPlayMode, TestVRModalLocomotionPlayMode, TestAudioSettingsPlayMode, TestSettingsLayoutPlayMode, TestDoorMenuFogSuite và camera/NPC có thể đổi scene, tạo fixture hoặc gọi EditorApplication.Exit. Chỉ chạy trên bản sao; đọc entry trước dùng -executeMethod. Pointer callback mô phỏng không phải mouse/touch/controller thật.
+**Run Saved Artwork Region Play Mode có thể thoát Editor khi xong.** Các entry tự động trong TestColorReferenceAuthoring, TestArtworkAuthoringDimensions, TestMainMenuPlayMode, TestVRModalLocomotionPlayMode, TestAudioSettingsPlayMode, TestSettingsLayoutPlayMode, TestDoorMenuFogSuite, TestColorPreprocessing.RunAndExit/RunAndAuthoring/AuditCrossTargetAndExit, TestColorBoundaryAuthoring.Begin/AuditGeneratedAndExit, TestMuseumEmployeeIntegration.Begin và camera/NPC có thể đổi scene, tạo fixture hoặc gọi EditorApplication.Exit. Chỉ chạy trên bản sao; đọc entry trước dùng -executeMethod. Pointer callback mô phỏng không phải mouse/touch/controller thật.
 
 - [ ] Compile không lỗi C#; phân loại Console theo test/asset thật.
 - [ ] Menu → gallery → workshop → gallery → menu; Play dùng được lần thứ hai.
@@ -192,7 +219,11 @@ Log hiện tại có thể ở `Logs/Editor.log`, `Logs/upm.log` trong dự án;
 - [ ] Build Windows/Android, ghi version/target/kết quả; không ghi đạt thiết bị từ Editor target.
 - [ ] Review meta/scene/callback/lightmap, giữ bake/geometry người dùng; không commit Logs/cache/validation/build.
 
-### Phạm vi đã kiểm ngày 03/10/2026
+### Phạm vi kiểm
+
+Lượt nâng tiền xử lý 04/10/2026 bổ sung test nét một pixel, chi tiết bốn pixel, alpha, gradient/texture, khe sáng/khe nhạt, span, zoom, hủy, timeout và ảnh 2048×2048. Số vùng nhỏ gần nét gốc có thể tăng khi giữ lại hatching; không chỉ dùng tổng số vùng làm thước đo chất lượng. Preview cần được review trên từng tranh; chưa bảo đảm mọi ranh giới có ý nghĩa đã khớp. Bản tiền xử lý cũ đề xuất PARTIAL; lượt tiếp theo đổi mặc định sang biên màu, bổ sung nét ngăn vẽ tay và kiểm mảng đen. Báo cáo mới ở Logs/ColorBoundaryExecuted.md; đối chiếu cũ ở Logs/ColorPreprocessingExecuted.md (artifact local, không thuộc commit lượt trước).
+
+Kết quả ngày 03/10/2026 trước nâng tiền xử lý:
 
 Tool màu: Windows target **310 assertion**, Android target **424 assertion** trên Windows Editor, gồm tạo thật, runtime Play Mode và reimport reference từ target kia. Chế độ nét **245 assertion** ở lượt riêng; gameplay **13/13**, coloring **5/5**. Menu cửa setup **74 assertion**, Play Mode **101 assertion**, render 1920×1080/720×1600. Gallery chụp ba góc trước/sau fog trên cùng lightmap người dùng bake, không bake lại.
 

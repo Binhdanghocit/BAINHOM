@@ -111,3 +111,6 @@ InitTestScene*.unity*
 # Local build outputs va crash recovery - khong push len git
 /Android/
 /Assets/_Recovery/
+
+# Local artwork previews and review artifacts; input manifests live in Assets/Editor.
+/ArtPreviews/

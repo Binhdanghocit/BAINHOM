@@ -10,6 +10,7 @@ using UnityEngine;
 public sealed class AddColoringArtworkWindow : EditorWindow
 {
     private string artworkName = string.Empty;
+    internal string outputFolder;
     private Texture2D originalImage;
     private Texture2D cachedOriginalImage;
     private Texture2D referenceArt;
@@ -48,6 +49,15 @@ public sealed class AddColoringArtworkWindow : EditorWindow
     private string colorAnalysisError;
     private HashSet<int> unpaintableColorRegions = new HashSet<int>();
     private Color32[] colorReferencePixels;
+    private float colorDenoise = 0.25f, colorKeepEdges = 0.85f, colorPreviewZoom = 1f;
+    private bool preserveColorInk, smoothColorBoundaries = true, joinColorGaps;
+    private int colorPreset = 3, colorCompareView;
+    private Texture2D previewFilteredColor, previewColorOverlay;
+    private Texture2D previewPreservedInk;
+    private int colorBrushRadius;
+    private bool colorStrokeActive;
+    private Vector2Int colorLastStrokePoint;
+    private readonly Dictionary<string, Vector2> colorPreviewScroll = new Dictionary<string, Vector2>();
 
     // Chế độ cửa sổ
     private int editorMode = 0;
@@ -74,6 +84,9 @@ public sealed class AddColoringArtworkWindow : EditorWindow
         if (previewLineArt != null) { DestroyImmediate(previewLineArt); previewLineArt = null; }
         if (previewRegionOverlay != null) { DestroyImmediate(previewRegionOverlay); previewRegionOverlay = null; }
         if (previewMask != null) { DestroyImmediate(previewMask); previewMask = null; }
+        if (previewFilteredColor != null) { DestroyImmediate(previewFilteredColor); previewFilteredColor = null; }
+        if (previewColorOverlay != null) { DestroyImmediate(previewColorOverlay); previewColorOverlay = null; }
+        if (previewPreservedInk != null) { DestroyImmediate(previewPreservedInk); previewPreservedInk = null; }
     }
 
     private void OnGUI()
@@ -320,6 +333,7 @@ public sealed class AddColoringArtworkWindow : EditorWindow
 
     private void ReanalyzeArtwork()
     {
+        if (colorStrokeActive) { colorStrokeActive = false; GUIUtility.hotControl = 0; }
         ReleasePreviewTextures();
         calculatedRegions.Clear();
         leakOrMergeWarnings.Clear();
@@ -818,13 +832,15 @@ public sealed class AddColoringArtworkWindow : EditorWindow
             string sourcePath = AssetDatabase.GetAssetPath(originalImage);
             if (string.IsNullOrEmpty(sourcePath))
                 throw new InvalidOperationException("Ảnh gốc phải là tài nguyên đã lưu trong dự án.");
-            string folder = Path.GetDirectoryName(sourcePath).Replace('\\', '/');
+            string folder = string.IsNullOrEmpty(outputFolder) ? Path.GetDirectoryName(sourcePath).Replace('\\', '/') : outputFolder;
+            if (!AssetDatabase.IsValidFolder(folder))
+                throw new InvalidOperationException("Thư mục xuất phải tồn tại trong Assets.");
             string name = SanitizeFileName(artworkName.Trim());
             string linePath = AssetDatabase.GenerateUniqueAssetPath($"{folder}/{name}_LineArt.png");
             createdPaths.Add(linePath);
             File.WriteAllBytes(linePath, previewLineArt.EncodeToPNG());
             AssetDatabase.ImportAsset(linePath, ImportAssetOptions.ForceSynchronousImport);
-            if (sourceMode == 1)
+            if (sourceMode == 1 || !string.IsNullOrEmpty(outputFolder))
                 ConfigureFinalArtworkImporter(linePath, previewLineArt.width, previewLineArt.height, false);
             else
                 ConfigureTextureImporter(linePath, isReadable: true, uncompressed: true, pointFilter: false);
@@ -909,32 +925,57 @@ public sealed class AddColoringArtworkWindow : EditorWindow
 
     private void DrawColorAuthoring()
     {
+        EditorGUILayout.LabelField("Nét theo biên mảng màu", EditorStyles.boldLabel);
+        EditorGUILayout.HelpBox("Mỗi mảng màu có phần trắng để tô, kể cả mảng đen. Độ tối không tự quyết định nét. Giữ nét tối gốc là tùy chọn riêng.", MessageType.Info);
+        int preset = EditorGUILayout.Popup("Preset", colorPreset, new[] { "Màu phẳng", "Tranh có texture", "Ảnh chụp", "Tùy chỉnh" });
+        if (preset != colorPreset)
+        {
+            if (preset == 3) colorPreset = 3;
+            else ApplyColorPreset(preset);
+        }
+        EditorGUILayout.HelpBox("Đổi preset, ảnh hoặc tham số phân vùng sẽ RESET chỉnh sửa gộp/loại. Đổi độ dày nét giữ chỉnh sửa. Hãy chọn tham số trước rồi sửa vùng.", MessageType.Warning);
         EditorGUI.BeginChangeCheck();
+        float denoise = EditorGUILayout.Slider("Giảm nhiễu giữ cạnh", colorDenoise, 0f, 1f);
         float distance = EditorGUILayout.Slider("Mức gộp màu (Lab)", colorMergeDistance, 2f, 40f);
+        float edges = EditorGUILayout.Slider("Giữ cạnh", colorKeepEdges, 0f, 1f);
         int min = EditorGUILayout.IntSlider("Gộp vùng nhỏ dưới (px)", minimumRegionPixels, 1, 2000);
-        bool smooth = EditorGUILayout.Toggle("Giảm nhiễu màu (median 3×3)", smoothLines);
+        bool ink = EditorGUILayout.Toggle("Giữ nét tối gốc (tùy chọn)", preserveColorInk);
+        bool smooth = EditorGUILayout.Toggle("Làm mượt biên yếu", smoothColorBoundaries);
+        bool gaps = EditorGUILayout.Toggle("Nối khe nét nhạt 1 px", joinColorGaps);
         if (EditorGUI.EndChangeCheck())
         {
-            colorMergeDistance = distance; minimumRegionPixels = min; smoothLines = smooth;
+            colorPreset = 3;
+            colorDenoise = denoise; smoothLines = denoise > 0f; colorKeepEdges = edges;
+            colorMergeDistance = distance; minimumRegionPixels = min;
+            preserveColorInk = ink; smoothColorBoundaries = smooth; joinColorGaps = gaps;
             ReanalyzeArtwork();
         }
-        int thickness = EditorGUILayout.IntSlider("Độ dày nét (px)", colorLineThickness, 1, 8);
-        if (thickness != colorLineThickness)
-        { colorLineThickness = thickness; RefreshColorPreview(); }
-        EditorGUILayout.HelpBox("Đổi tham số phân vùng hoặc ảnh sẽ xóa các chỉnh sửa vùng. Đổi độ dày nét giữ các vùng đã gộp/loại. Bấm hai vùng kề nhau để gộp; vùng rời nhau không tự gộp dù cùng màu.", MessageType.Info);
-        colorEditMode = GUILayout.Toolbar(colorEditMode, new[] { "Kiểm tra vùng", "Loại / khôi phục", "Gộp 2 vùng kề" });
+        int thickness = EditorGUILayout.IntSlider("Độ dày nét sinh (px)", colorLineThickness, 1, 8);
+        if (thickness != colorLineThickness) { colorLineThickness = thickness; RefreshColorPreview(); }
+        EditorGUILayout.HelpBox("Giữ cạnh cao bảo vệ chi tiết nhưng có thể giữ cả nhiễu. Nét tối gốc giữ bề dày gốc; độ dày chỉ áp vào biên sinh mới. Tắt Giữ nét tối nếu muốn tô các mảng đen. Nối khe chỉ nối 1 px có dấu nét nhạt, không khép khoảng trắng sáng.", MessageType.Info);
+        colorPreviewZoom = EditorGUILayout.Slider("Zoom preview", colorPreviewZoom, 1f, 4f);
+        colorCompareView = GUILayout.Toolbar(colorCompareView, new[] { "Trước / sau lọc", "Nét chồng nguồn" });
+        colorEditMode = EditorGUILayout.Popup("Sửa preview", colorEditMode, new[] { "Kiểm tra vùng", "Loại / khôi phục", "Gộp vùng", "Vẽ nét ngăn", "Xóa nét vẽ tay" });
+        if (colorEditMode >= 3)
+        {
+            colorBrushRadius = EditorGUILayout.IntSlider("Bán kính nét vẽ (px)", colorBrushRadius, 0, 6);
+            EditorGUILayout.HelpBox("Kéo trên ảnh trắng để chia vùng hiện có. Xóa chỉ bỏ nét vẽ tay; không xóa biên tự sinh. Phân tích lại hoặc đổi tham số sẽ bỏ nét vẽ tay.", MessageType.Info);
+        }
         if (GUILayout.Button("Phân tích lại / bỏ chỉnh sửa vùng")) ReanalyzeArtwork();
         if (colorAnalysisError != null) EditorGUILayout.HelpBox(colorAnalysisError, MessageType.Error);
         if (colorAnalysis == null) return;
-        EditorGUILayout.LabelField($"{colorAnalysis.RegionCount} mảng màu; {fillableRegionCount} vùng tô; {excludedColorRegions.Count} vùng đã loại; gộp {colorAnalysis.SmallRegionsMerged} vùng nhỏ.");
+        EditorGUILayout.LabelField($"{colorAnalysis.RegionCount} mảng màu; {fillableRegionCount} vùng tô; {excludedColorRegions.Count} vùng đã loại; gộp {colorAnalysis.SmallRegionsMerged} mảng theo màu/cạnh.");
         if (lostColorRegions > 0)
         {
             EditorGUILayout.HelpBox($"{lostColorRegions} vùng không còn pixel bên trong nét. Giảm độ dày nét, gộp hoặc loại vùng này trước khi lưu.", MessageType.Error);
             if (GUILayout.Button($"Loại {lostColorRegions} vùng màu hồng không đủ chỗ tô")) ExcludeUnpaintableColorRegions();
         }
-        DrawColorPreview("Ảnh mẫu gốc", originalImage, false);
-        DrawColorPreview("Ảnh nét", previewLineArt, false);
-        DrawColorPreview("Vùng tô (bấm để sửa)", previewRegionOverlay, true);
+        DrawColorPreview("Ảnh nguồn (trước lọc)", originalImage, false);
+        DrawColorPreview(colorCompareView == 0 ? "Sau lọc giữ cạnh" : "Nét chồng ảnh nguồn",
+            colorCompareView == 0 ? previewFilteredColor : previewColorOverlay, false);
+        if (preserveColorInk) DrawColorPreview("Pixel đỏ: phần được giữ làm nét tối, không tô được", previewPreservedInk, false);
+        DrawColorPreview("Ảnh trắng để tô / vẽ nét ngăn", previewLineArt, colorEditMode >= 3);
+        DrawColorPreview("Vùng tô (bấm để sửa)", previewRegionOverlay, colorEditMode < 3);
         EditorGUILayout.LabelField(previewProbe, EditorStyles.wordWrappedMiniLabel);
     }
 
@@ -945,22 +986,78 @@ public sealed class AddColoringArtworkWindow : EditorWindow
         float height = Mathf.Min(340f, Mathf.Max(160f, (position.width - 36f) * texture.height / texture.width));
         Rect area = GUILayoutUtility.GetRect(260f, height, GUILayout.ExpandWidth(true));
         EditorGUI.DrawRect(area, new Color(0.15f, 0.15f, 0.15f));
-        Rect image = ContainRect(texture.width, texture.height, area);
+        colorPreviewScroll.TryGetValue(title, out Vector2 pan);
+        Rect content = new Rect(0, 0, area.width * colorPreviewZoom, area.height * colorPreviewZoom);
+        bool insideViewport = area.Contains(Event.current.mousePosition);
+        int control = GUIUtility.GetControlID(FocusType.Passive);
+        colorPreviewScroll[title] = GUI.BeginScrollView(area, pan, content);
+        Rect image = ContainRect(texture.width, texture.height, content);
         GUI.DrawTexture(image, texture, ScaleMode.StretchToFill, true);
         Event e = Event.current;
-        if (!interactive || e.type != EventType.MouseDown || e.button != 0 || !image.Contains(e.mousePosition)) return;
-        int x = Mathf.Clamp((int)((e.mousePosition.x - image.xMin) / image.width * texture.width), 0, texture.width - 1);
-        int y = Mathf.Clamp((int)((image.yMax - e.mousePosition.y) / image.height * texture.height), 0, texture.height - 1);
-        EditColorRegionAt(x, y, colorEditMode);
-        e.Use(); Repaint();
+        if (interactive && insideViewport && e.type == EventType.MouseDown && e.button == 0 && image.Contains(e.mousePosition))
+        {
+            Vector2Int pixel = ColorPreviewPixel(image, e.mousePosition, texture.width, texture.height);
+            if (colorEditMode >= 3)
+            {
+                colorStrokeActive = true; colorLastStrokePoint = pixel; GUIUtility.hotControl = control;
+                EditColorBoundary(pixel, pixel, colorBrushRadius, colorEditMode == 4);
+            }
+            else EditColorRegionAt(pixel.x, pixel.y, colorEditMode);
+            e.Use(); Repaint();
+        }
+        else if (interactive && colorStrokeActive && e.type == EventType.MouseDrag && e.button == 0)
+        {
+            if (insideViewport && image.Contains(e.mousePosition))
+            {
+                Vector2Int pixel = ColorPreviewPixel(image, e.mousePosition, texture.width, texture.height);
+                Vector2Int from = colorLastStrokePoint.x < 0 ? pixel : colorLastStrokePoint;
+                EditColorBoundary(from, pixel, colorBrushRadius, colorEditMode == 4); colorLastStrokePoint = pixel;
+            }
+            else colorLastStrokePoint = new Vector2Int(-1, -1);
+            e.Use(); Repaint();
+        }
+        else if (interactive && colorStrokeActive && e.type == EventType.MouseUp && e.button == 0)
+        { colorStrokeActive = false; GUIUtility.hotControl = 0; e.Use(); }
+        GUI.EndScrollView();
     }
+
+    internal void EditColorBoundary(Vector2Int from, Vector2Int to, int radius, bool erase)
+    {
+        if (colorAnalysis == null) return;
+        colorAnalysis.DrawManualBoundary(from.x, from.y, to.x, to.y, radius, erase);
+        RefreshColorPreview();
+    }
+
+    internal static Vector2Int ColorPreviewPixel(Rect image, Vector2 point, int width, int height)
+        => new Vector2Int(Mathf.Clamp((int)((point.x - image.xMin) / image.width * width), 0, width - 1),
+            Mathf.Clamp((int)((image.yMax - point.y) / image.height * height), 0, height - 1));
+
+    internal void ApplyColorPreset(int preset)
+    {
+        colorPreset = Mathf.Clamp(preset, 0, 2);
+        colorDenoise = colorPreset == 0 ? 0.25f : colorPreset == 1 ? 0.8f : 0.9f;
+        colorKeepEdges = colorPreset == 0 ? 0.85f : colorPreset == 1 ? 0.7f : 0.5f;
+        colorMergeDistance = colorPreset == 0 ? 12f : colorPreset == 1 ? 24f : 20f;
+        minimumRegionPixels = colorPreset == 0 ? 20 : colorPreset == 1 ? 200 : 120;
+        preserveColorInk = false; smoothColorBoundaries = true; joinColorGaps = false;
+        smoothLines = true; excludedColorRegions.Clear(); pendingMergeRegion = 0; ReanalyzeArtwork();
+    }
+
+    private bool CancelColorProcessing(string phase, float progress)
+        => !Application.isBatchMode && EditorUtility.DisplayCancelableProgressBar("Tạo tranh tô từ ảnh màu", phase, progress);
 
     // The preview and integration suite call the same edit path.
     internal void EditColorRegionAt(int x, int y, int mode)
     {
         if (colorAnalysis == null || x < 0 || y < 0 || x >= colorAnalysis.Width || y >= colorAnalysis.Height) return;
         int id = colorAnalysis.Labels[y * colorAnalysis.Width + x];
-        if (id <= 0) { previewProbe = "Nền transparent: không thuộc vùng tô."; return; }
+        if (id <= 0)
+        {
+            previewProbe = colorAnalysis.Ink[y * colorAnalysis.Width + x]
+                ? "Pixel được giữ làm nét tối: không tô được. Tắt Giữ nét tối gốc rồi phân tích lại để tạo vùng tô."
+                : "Nền transparent: không thuộc vùng tô.";
+            return;
+        }
         if (mode != 2) pendingMergeRegion = 0;
         if (mode == 1)
         {
@@ -996,7 +1093,7 @@ public sealed class AddColoringArtworkWindow : EditorWindow
         {
             if ((long)originalImage.width * originalImage.height > 4194304)
                 throw new InvalidOperationException("Ảnh trên 4 triệu pixel. Giảm Max Size trong importer rồi phân tích lại.");
-            EditorUtility.DisplayProgressBar("Tạo tranh tô từ ảnh màu", "Đang gộp màu và tách các vùng liên thông…", 0.3f);
+            if (CancelColorProcessing("Đọc ảnh", 0)) throw new OperationCanceledException("Đã hủy; chưa lưu tài nguyên.");
             // GPU readback leaves the original importer and file intact, including non-readable images.
             RenderTexture previous = RenderTexture.active;
             RenderTexture rt = RenderTexture.GetTemporary(originalImage.width, originalImage.height, 0, RenderTextureFormat.ARGB32, RenderTextureReadWrite.sRGB);
@@ -1009,7 +1106,11 @@ public sealed class AddColoringArtworkWindow : EditorWindow
             finally { RenderTexture.active = previous; RenderTexture.ReleaseTemporary(rt); }
             colorReferencePixels = readable.GetPixels32();
             colorAnalysis = ColorArtworkSegmentation.Analyze(colorReferencePixels, originalImage.width, originalImage.height,
-                colorMergeDistance, minimumRegionPixels, smoothLines);
+                new ColorArtworkSegmentation.Options { MergeDistance = colorMergeDistance,
+                    MinimumPixels = minimumRegionPixels, Denoise = smoothLines ? colorDenoise : 0f,
+                    KeepEdges = colorKeepEdges, PreserveInk = preserveColorInk,
+                    SmoothBoundaries = smoothColorBoundaries, JoinFaintGaps = joinColorGaps,
+                    Cancel = CancelColorProcessing });
             RefreshColorPreview();
         }
         catch (Exception e) { colorAnalysisError = "Không phân tích được ảnh màu: " + e.Message; }
@@ -1019,14 +1120,30 @@ public sealed class AddColoringArtworkWindow : EditorWindow
     private void RefreshColorPreview()
     {
         if (colorAnalysis == null) return;
+        ColorArtworkSegmentation.Output result;
+        try { result = colorAnalysis.BuildOutput(excludedColorRegions, colorLineThickness); }
+        catch (Exception e) { colorAnalysisError = "Chưa có preview hợp lệ: " + e.Message; return; }
+        finally { EditorUtility.ClearProgressBar(); }
         ReleasePreviewTextures();
-        ColorArtworkSegmentation.Output result = colorAnalysis.BuildOutput(excludedColorRegions, colorLineThickness);
         calculatedRegions = result.Regions; fillableRegionCount = result.Regions.Count;
         maskPixelCount = result.PaintablePixels; lostColorRegions = result.LostRegions;
         unpaintableColorRegions = result.LostRegionIds;
         previewLineArt = ColorPreviewTexture(result.Lines, "ColorLinePreview", FilterMode.Bilinear);
         previewMask = ColorPreviewTexture(result.Mask, "ColorMaskPreview", FilterMode.Point);
         previewRegionOverlay = ColorPreviewTexture(result.Overlay, "ColorRegionsPreview", FilterMode.Point);
+        previewFilteredColor = ColorPreviewTexture(colorAnalysis.Filtered, "FilteredColorPreview", FilterMode.Bilinear);
+        var overlay = new Color32[result.Lines.Length];
+        for (int p = 0; p < overlay.Length; p++) overlay[p] = result.Lines[p].r == 0
+            ? new Color32(0, 0, 0, colorReferencePixels[p].a) : colorReferencePixels[p];
+        previewColorOverlay = ColorPreviewTexture(overlay, "LineOnSourcePreview", FilterMode.Bilinear);
+        if (preserveColorInk)
+        {
+            var inkOverlay = (Color32[])colorReferencePixels.Clone();
+            for (int p = 0; p < inkOverlay.Length; p++)
+                if (colorAnalysis.Ink[p]) inkOverlay[p] = new Color32(255, 30, 30, colorReferencePixels[p].a);
+            previewPreservedInk = ColorPreviewTexture(inkOverlay, "PreservedInkPreview", FilterMode.Point);
+        }
+        colorAnalysisError = null;
     }
 
     private Texture2D ColorPreviewTexture(Color32[] pixels, string name, FilterMode filter)

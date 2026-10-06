@@ -11802,6 +11802,96 @@ MonoBehaviour:
     minimumRegionPixels: 10
     whiteThreshold: 50
     regions: []
+  - title: Boi-canh-ra-doi-cua-Tranh-Dong-Ho-Thay-Do-Coc
+    lineArt: {fileID: 2800000, guid: b9aeb2b3237ca614980b718433225ac7, type: 3}
+    referenceArt: {fileID: 2800000, guid: 6893c32d78eba2d4e85548869e6a8640, type: 3}
+    paintMask: {fileID: 2800000, guid: 6215bf1b70b975f4fb3f004b9e461f75, type: 3}
+    regionData: {fileID: 4900000, guid: 71bcd50b63120d043b66db582a031512, type: 3}
+    referenceScale: 1
+    referenceOffset: {x: 0, y: 0}
+    minimumRegionPixels: 120
+    whiteThreshold: 180
+    regions: []
+  - title: "B\xE0 Tri\u1EC7u c\u01B0\u1EE1i voi"
+    lineArt: {fileID: 2800000, guid: 4888fce670bfdfe4194408d09ae7aabf, type: 3}
+    referenceArt: {fileID: 2800000, guid: 95df6d501c2937c4a9e07b849cbf3226, type: 3}
+    paintMask: {fileID: 2800000, guid: ce570c4386cf61249914280adfee4a2b, type: 3}
+    regionData: {fileID: 4900000, guid: 60e73bf9d7314734ea9c961424190ab0, type: 3}
+    referenceScale: 1
+    referenceOffset: {x: 0, y: 0}
+    minimumRegionPixels: 120
+    whiteThreshold: 180
+    regions: []
+  - title: chuotvinhquy
+    lineArt: {fileID: 2800000, guid: 77a15c80c85cc3a48b87432337bed3da, type: 3}
+    referenceArt: {fileID: 2800000, guid: 98187cef38ead944189c4162c5461814, type: 3}
+    paintMask: {fileID: 2800000, guid: 0599d752c76516c43b1543d265a2a18c, type: 3}
+    regionData: {fileID: 4900000, guid: b8fec4040e9eb094e8c403dba19aaa6c, type: 3}
+    referenceScale: 1
+    referenceOffset: {x: 0, y: 0}
+    minimumRegionPixels: 200
+    whiteThreshold: 180
+    regions: []
+  - title: "Ch\u0103n tr\xE2u th\u1ED5i s\xE1o"
+    lineArt: {fileID: 2800000, guid: 78249dcd32103cc4c80b42ff11ba8ad7, type: 3}
+    referenceArt: {fileID: 2800000, guid: 643b57b499d39e649a8bfc374c864af3, type: 3}
+    paintMask: {fileID: 2800000, guid: cbc0fae6e5daff24494accde3ee1d67f, type: 3}
+    regionData: {fileID: 4900000, guid: 10b9b1a03e267a948a11a817c75db48c, type: 3}
+    referenceScale: 1
+    referenceOffset: {x: 0, y: 0}
+    minimumRegionPixels: 120
+    whiteThreshold: 180
+    regions: []
+  - title: phuquy
+    lineArt: {fileID: 2800000, guid: 738eae77b9e0f0f4caa7bb445b47fc44, type: 3}
+    referenceArt: {fileID: 2800000, guid: 8b3d448801eced249bbbd62e362a3e95, type: 3}
+    paintMask: {fileID: 2800000, guid: ea8d84425dbc87945883d3e25f19144b, type: 3}
+    regionData: {fileID: 4900000, guid: b0198ebfad1a007409fc48d3fed3a25c, type: 3}
+    referenceScale: 1
+    referenceOffset: {x: 0, y: 0}
+    minimumRegionPixels: 120
+    whiteThreshold: 180
+    regions: []
+  - title: "Ti\u1EBFn l\u1ED9c"
+    lineArt: {fileID: 2800000, guid: 67ee5ac2200feb04c87ec5f138e397ef, type: 3}
+    referenceArt: {fileID: 2800000, guid: 4725c5c9525256045823563c9d69109d, type: 3}
+    paintMask: {fileID: 2800000, guid: ff67dd3c06652ef41b47cd5650d6c85f, type: 3}
+    regionData: {fileID: 4900000, guid: 3f6f75eae094097438fffa428991f88c, type: 3}
+    referenceScale: 1
+    referenceOffset: {x: 0, y: 0}
+    minimumRegionPixels: 120
+    whiteThreshold: 180
+    regions: []
+  - title: "Ti\u1EBFn t\xE0i"
+    lineArt: {fileID: 2800000, guid: 6e88af19dfdbdb3468c46ec71e8e364e, type: 3}
+    referenceArt: {fileID: 2800000, guid: fd8e48b095374b8478180237afd774d2, type: 3}
+    paintMask: {fileID: 2800000, guid: 099306d5030d44d42adf8e407f2f5b21, type: 3}
+    regionData: {fileID: 4900000, guid: 1e4a1084571434f4390bbe4c98a67059, type: 3}
+    referenceScale: 1
+    referenceOffset: {x: 0, y: 0}
+    minimumRegionPixels: 120
+    whiteThreshold: 180
+    regions: []
+  - title: vinhhoa
+    lineArt: {fileID: 2800000, guid: 2a2141d7aba06d24b9c2a6d3def741b6, type: 3}
+    referenceArt: {fileID: 2800000, guid: 5cc5022292d5da64797dc82f56481979, type: 3}
+    paintMask: {fileID: 2800000, guid: e3884bc50a532a3498b1de371bfc1e36, type: 3}
+    regionData: {fileID: 4900000, guid: 375d4f5784c87ed41af0eaf18844dd4c, type: 3}
+    referenceScale: 1
+    referenceOffset: {x: 0, y: 0}
+    minimumRegionPixels: 120
+    whiteThreshold: 180
+    regions: []
+  - title: tranh-to-mau-tranh-dong-ho-lon-an-cay-ray
+    lineArt: {fileID: 2800000, guid: 159374578e813ca44a6d8f1f19f0c773, type: 3}
+    referenceArt: {fileID: 2800000, guid: 26dcc619958c46248839813fbf0a4eeb, type: 3}
+    paintMask: {fileID: 2800000, guid: 90ac58c1e7a98c1448172fa3490d9dcf, type: 3}
+    regionData: {fileID: 4900000, guid: ae04dbc28294d5641a1591d15a3724a9, type: 3}
+    referenceScale: 1
+    referenceOffset: {x: 0, y: 0}
+    minimumRegionPixels: 1
+    whiteThreshold: 180
+    regions: []
   initialPaintingIndex: 0
   coloringImage: {fileID: 1906019349}
   lineArtOverlayImage: {fileID: 881050967}

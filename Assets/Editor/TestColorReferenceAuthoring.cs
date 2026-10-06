@@ -37,7 +37,7 @@ public static class TestColorReferenceAuthoring
             if (y >= 40 && y < 120 && x >= 20 && x < 230)
                 c = x < 70 || x >= 170 ? new Color32(230, 60, 60, 255)
                     : x < 120 ? new Color32(40, 80, 220, 255) : new Color32(40, 190, 80, 255);
-            // Small speckle inside red: absorbed, not turned into a tiny paint target.
+            // A high-contrast four-pixel detail is preserved; paper noise is filtered separately.
             if (x >= 35 && x < 37 && y >= 65 && y < 67) c = new Color32(240, 230, 40, 255);
             if (texture && c.a > 0 && c.r < 250)
             {
@@ -73,13 +73,13 @@ public static class TestColorReferenceAuthoring
     private static void AlgorithmChecks()
     {
         var flat = ColorArtworkSegmentation.Analyze(Fixture(false, false), 256, 160, 12, 20, false);
-        Check(flat.RegionCount == 5 && flat.SmallRegionsMerged == 1, "Flat image: background + four spatial regions; tiny speckle absorbed");
+        Check(flat.RegionCount == 6 && flat.SmallRegionsMerged == 0, "Flat image: spatial regions plus protected high-contrast four-pixel detail");
         Check(flat.Labels[80 * 256 + 40] != flat.Labels[80 * 256 + 200], "Identical colours in disconnected areas have different IDs");
         Check(!flat.MergeAdjacent(flat.Labels[80 * 256 + 40], flat.Labels[80 * 256 + 200]), "Manual merge refuses disconnected regions");
         var textured = ColorArtworkSegmentation.Analyze(Fixture(false, true), 256, 160, 12, 20, true);
-        Check(textured.RegionCount == 5, "Median + colour grouping removes deterministic texture speckle");
+        Check(textured.RegionCount == 6, "Paper noise is grouped while the contrasting small detail survives");
         var alpha = ColorArtworkSegmentation.Analyze(Fixture(true, false), 256, 160, 12, 20, false);
-        Check(alpha.RegionCount == 4 && alpha.Labels[0] == 0, "Transparent background never becomes paintable");
+        Check(alpha.RegionCount == 5 && alpha.Labels[0] == 0, "Transparent background never becomes paintable; small detail survives");
         var near = new Color32[64 * 32];
         for (int p = 0; p < near.Length; p++) near[p] = p % 64 < 32 ? new Color32(255, 100, 100, 255) : new Color32(235, 100, 100, 255);
         Check(ColorArtworkSegmentation.Analyze(near, 64, 32, 2, 1, false).RegionCount == 2
@@ -178,9 +178,9 @@ public static class TestColorReferenceAuthoring
                 using (var window = new WindowOwner(Analyze(source, "GeneratedColour")))
                 {
                     if (!transparent) window.Value.EditColorRegionAt(3, 3, 1);
-                    Check(Get<int>(window.Value, "fillableRegionCount") == 4, "Click exclusion leaves four foreground targets");
+                    Check(Get<int>(window.Value, "fillableRegionCount") == 5, "Click exclusion leaves foreground targets and protected small detail");
                     window.Value.EditColorRegionAt(90, 80, 2); window.Value.EditColorRegionAt(140, 80, 2);
-                    Check(Get<int>(window.Value, "fillableRegionCount") == 3, "Preview manual merge removes the shared blue/green boundary");
+                    Check(Get<int>(window.Value, "fillableRegionCount") == 4, "Preview manual merge removes only the shared blue/green boundary");
                     ExportPreview(window.Value, source, transparent ? "Transparent" : "FlatEdited");
                     var art = SaveWithPreviewCheck(window.Value);
                     Check(art.referenceArt != source && art.referenceScale == 1 && art.referenceOffset == Vector2.zero, "Dedicated stable reference preserves original source"); Audit(art);
@@ -195,11 +195,14 @@ public static class TestColorReferenceAuthoring
                 string hash = Hash(path), meta = Hash(path + ".meta");
                 using (var window = new WindowOwner(Analyze(source, Path.GetFileNameWithoutExtension(path) + " Colour", 80)))
                 {
+                    // These paper-textured controls use the explicit Texture preset,
+                    // rather than inheriting the lighter new-window default.
+                    window.Value.ApplyColorPreset(1);
                     Set(window.Value, "smoothLines", true); Set(window.Value, "colorMergeDistance", 24f);
                     Set(window.Value, "minimumRegionPixels", 200); Set(window.Value, "colorLineThickness", 1);
                     typeof(AddColoringArtworkWindow).GetMethod("ReanalyzeArtwork", Private).Invoke(window.Value, null);
                     int lost = Get<int>(window.Value, "lostColorRegions");
-                    results.Add("REVIEW EDIT: " + path + "; median=on, Lab=24, min=200, line=1; explicitly exclude " + lost + " narrow regions consumed by outlines");
+                    results.Add("REVIEW EDIT: " + path + "; Texture preset, nativeInk=off, Lab=24, min=200, line=1; explicitly exclude " + lost + " narrow regions consumed by outlines");
                     window.Value.ExcludeUnpaintableColorRegions();
                     window.Value.EditColorRegionAt(source.width - 8, source.height - 8, 1);
                     Check(Get<Texture2D>(window.Value, "previewMask").GetPixels32()[(source.height - 8) * source.width + source.width - 8].r == 0,

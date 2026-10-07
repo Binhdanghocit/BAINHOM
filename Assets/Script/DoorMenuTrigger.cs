@@ -302,7 +302,18 @@ public class DoorMenuTrigger : MonoBehaviour
     public bool TryInteractFromRay(Ray ray)
     {
         if (lastInputFrame == Time.frameCount) return true;
-        RaycastHit[] hits = Physics.RaycastAll(ray, maxInteractDistance, ~0, QueryTriggerInteraction.Collide);
+        Transform player = playerController != null ? playerController.transform : null;
+        if (player == null)
+        {
+            var pc = Object.FindAnyObjectByType<PlayerController>();
+            if (pc != null) player = pc.transform;
+        }
+        float camToPlayer = 0f;
+        if (Camera.main != null && player != null)
+            camToPlayer = Vector3.Distance(Camera.main.transform.position, player.position);
+
+        float raycastDistance = camToPlayer + maxInteractDistance + 5f;
+        RaycastHit[] hits = Physics.RaycastAll(ray, raycastDistance, ~0, QueryTriggerInteraction.Collide);
         System.Array.Sort(hits, (a, b) => a.distance.CompareTo(b.distance));
 
         foreach (RaycastHit hit in hits)
@@ -315,7 +326,8 @@ public class DoorMenuTrigger : MonoBehaviour
             if (hitDoor == null) hitDoor = hitTransform.GetComponentInParent<DoorMenuTrigger>();
             if (hitDoor != null)
             {
-                if (hitDoor != this || hit.distance > maxInteractDistance) return false;
+                float distToPlayer = player != null ? Vector3.Distance(player.position, hit.point) : hit.distance;
+                if (hitDoor != this || distToPlayer > maxInteractDistance) return false;
                 if (!IsOpen && IsBlockingUIOpen()) return false;
                 lastInputFrame = Time.frameCount;
                 if (minigameUI != null && minigameUI.activeSelf) CloseMinigame();

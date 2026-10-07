@@ -181,10 +181,15 @@ public class CrosshairReticle : MonoBehaviour
     {
         if (aimCamera == null) return null;
         Ray ray = aimCamera.ViewportPointToRay(new Vector3(0.5f, 0.5f, 0f));
-        RaycastHit[] hits = Physics.RaycastAll(ray, rayDistance, ~0, QueryTriggerInteraction.Collide);
-        System.Array.Sort(hits, (a, b) => a.distance.CompareTo(b.distance));
         PlayerInteraction interaction = FindAnyObjectByType<PlayerInteraction>();
         float targetDistance = interaction != null ? interaction.interactDistance : 3.5f;
+        Transform playerTransform = interaction != null ? interaction.transform : null;
+        float camToPlayer = (playerTransform != null && aimCamera != null)
+            ? Vector3.Distance(aimCamera.transform.position, playerTransform.position)
+            : 0f;
+        float maxRay = Mathf.Max(rayDistance, camToPlayer + targetDistance + 5f);
+        RaycastHit[] hits = Physics.RaycastAll(ray, maxRay, ~0, QueryTriggerInteraction.Collide);
+        System.Array.Sort(hits, (a, b) => a.distance.CompareTo(b.distance));
         foreach (RaycastHit hit in hits)
         {
             if (PlayerDetector.IsPlayer(hit.collider)) continue;
@@ -203,8 +208,11 @@ public class CrosshairReticle : MonoBehaviour
                 || hit.collider.GetComponentInParent<MinigameTrigger>() != null;
             if (interactive)
             {
-                float distance = door != null ? door.maxInteractDistance : targetDistance;
-                return hit.distance <= distance && outline != null && outline.IsProximityActive ? outline : null;
+                float allowedDistance = door != null ? door.maxInteractDistance : targetDistance;
+                float actualDistance = playerTransform != null 
+                    ? Vector3.Distance(playerTransform.position, hit.point) 
+                    : hit.distance;
+                return actualDistance <= allowedDistance && outline != null && outline.IsProximityActive ? outline : null;
             }
             // Match PlayerInteraction: volumes are skipped, solid geometry blocks sight.
             if (!hit.collider.isTrigger) return null;

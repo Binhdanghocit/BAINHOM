@@ -21,7 +21,7 @@ Các scene hiện có đã được cấu hình. Chỉ chạy setup cho phần c
 |---|---|---|---|
 | **Setup Workshop Tô Màu** | Scene cần workshop, dừng Play | Tạo/tái sử dụng WorkshopColoringCanvas, panel, safe area, khung ảnh nét/mẫu, palette, chọn tranh và nút; nối ColoringPageMinigame và cửa tìm thấy. Giữ danh sách tranh hiện có; danh sách mới trống. Bỏ Instructions, để panel đóng. Có thể bật Read/Write cho ảnh mặc định của tool. | Kiểm tham chiếu cửa/bàn, thêm tranh, Ctrl+S. Tool có thể đặt lại style/vị trí UI tùy chỉnh. |
 | **Workshop tô màu > Thêm cặp tranh** | Có ColoringPageMinigame, dừng Play | Mở cửa sổ authoring; khi bấm thêm, tạo tài nguyên cạnh ảnh nguồn và append một mục vào workshop. | Kiểm preview, lưu scene; xem phần 3–5. |
-| **Setup Gallery NPCs** | Đúng SampleScene, workshop có panel; có BusinessManVisual.prefab và model khách tham quan | Tạo prefab/instance còn thiếu; riêng GalleryGuide cập nhật visual sang Business Man cả khi prefab đã tồn tại. Giữ lời thoại, collider, vị trí và liên kết workshop đã gán; chỉ nối bàn khi hướng dẫn viên chưa có liên kết. Khách tham quan giữ model cũ. | Kiểm collider, lời thoại và workshopTrigger, Ctrl+S. Prefab được cập nhật trên disk; Undo scene không thay thế việc quản lý asset. |
+| **Setup Gallery NPCs** | Đúng SampleScene, workshop có panel; có BusinessManVisual.prefab và model khách tham quan Casual Female 01 | Tạo prefab/instance còn thiếu; GalleryGuide cập nhật visual sang Business Man và GalleryVisitor cập nhật sang Nữ Casual 01 (URP + idle animation). Giữ lời thoại, collider, vị trí và liên kết workshop đã gán; chỉ nối bàn khi hướng dẫn viên chưa có liên kết. | Kiểm collider, lời thoại và workshopTrigger, Ctrl+S. Prefab được cập nhật trên disk; Undo scene không thay thế việc quản lý asset. |
 | **Tự Động Setup 3 Nút Menu Cánh Cửa (Panel_DoorMenu)** | Có cửa tên cua hoặc DoorMenuTrigger; có panel gán doorMenuUI hoặc Panel_DoorMenu dưới cửa | Cập nhật chữ/font tiếng Việt, ba nút/callback và DoorMenuLayout; tái sử dụng hierarchy, giữ collider đã có, để menu đóng. | Kiểm minigameUI trỏ workshop; Ctrl+S. Nếu thiếu panel, gán panel hiện có trước. |
 
 Scene mới: setup workshop trước, nối panel vào bàn/cửa, rồi setup NPC và menu cửa. Tool không tự tìm mọi đối tượng hoặc vị trí phù hợp cho level mới. Có nhiều workshop thì chọn đúng component trong ô Workshop, không chỉ dựa vào nút Tìm.
@@ -123,7 +123,13 @@ Tiến độ nằm trong bộ nhớ workshop, chưa có lưu qua thoát game/d�
 
 ### NPC
 
-Chọn GalleryGuide/GalleryVisitor, kiểm NPCInteractable: npcName, dialogueLines, interactionCollider và workshopTrigger của hướng dẫn viên. Collider thân chọn NPC/cản ray; trigger proximity riêng theo dõi người chơi. Rigidbody kinematic, không gravity; không gắn PlayerController vào NPC.
+Kiểm tra NPCInteractable trên các NPC trong triển lãm:
+- **GalleryGuide**: Hướng dẫn viên (Business Man), có liên kết workshopTrigger.
+- **GalleryVisitor**: Khách tham quan sảnh chính (Nữ Casual 01).
+- **GalleryVisitor_Floor1**: Khách xem tranh Tầng 1 (Nam Casual 01) đứng trước tranh Đàn lợn âm dương.
+- **GalleryVisitor_Floor2**: Khách xem tranh Tầng 2 (Nữ Casual 02) đứng ở tầng 2 trước khu tranh lịch sử / tứ bình.
+
+Collider thân chọn NPC/cản ray; trigger proximity riêng theo dõi người chơi. Rigidbody kinematic, không gravity; không gắn PlayerController vào NPC.
 
 Chỉnh lời thoại rồi Ctrl+S. NPC thường có nút **Tiếp tục**; hướng dẫn viên có lựa chọn tham quan/workshop ở cuối. Disable component phải chặn tương tác và đóng hội thoại chính NPC đó. Kiểm hai NPC gần nhau không chuyển câu của người khác.
 

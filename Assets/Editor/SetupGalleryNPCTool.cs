@@ -9,9 +9,12 @@ public static class SetupGalleryNPCTool
 {
     private const string GalleryPath = "Assets/Scenes/SampleScene.unity";
     private const string PrefabFolder = "Assets/Prefabs";
-    private const string ModelPath = "Assets/Low Poly Girl/FBX/low_poly_girl .fbx";
-    private const string PlayerPrefabPath = "Assets/low_poly_girl  (unlit shader).prefab";
     private const string GuideVisualPath = "Assets/Characters/BusinessMan/BusinessManVisual.prefab";
+    private const string VisitorF1VisualPath = "Assets/Characters/npc_casual_set_00/Prefabs/npc_csl_00_character_01m_01.prefab"; // Nam Casual 01
+    private const string VisitorF2VisualPath = "Assets/Characters/npc_casual_set_00/Prefabs/npc_csl_00_character_02f_01.prefab"; // Nữ Casual 02
+    private const string VisitorMainVisualPath = "Assets/Characters/npc_casual_set_00/Prefabs/npc_csl_00_character_01f_01.prefab"; // Nữ Casual 01
+    private const string IdleControllerPath = "Assets/Characters/BusinessMan/BusinessManIdle.controller";
+    private const string URPMatFolder = "Assets/Characters/npc_casual_set_00/MaterialsUPR";
 
     // Batch entry point edits the saved gallery; it never relies on unsaved Editor state.
     public static void ConfigureSavedGallery()
@@ -38,20 +41,46 @@ public static class SetupGalleryNPCTool
         if (!AssetDatabase.IsValidFolder(PrefabFolder)) AssetDatabase.CreateFolder("Assets", "Prefabs");
         var workshop = FindWorkshop(coloring.workshopPanel);
         if (workshop == null) workshop = CreateWorkshopTable(coloring.workshopPanel);
+
+        // 1. Hướng dẫn viên (Business Man)
         CreateNPCPrefab("GalleryGuide", "Hướng dẫn viên", new[]
         {
             "Chào mừng bạn đến với triển lãm tranh Đông Hồ! Bạn có thể lại gần các bức tranh để xem thông tin.",
             "Bạn muốn qua workshop tô màu hay tiếp tục tham quan? Hãy chọn bên dưới nhé."
-        });
+        }, GuideVisualPath);
+
+        // 2. Khách tham quan sảnh chính (Nữ Casual 01)
         CreateNPCPrefab("GalleryVisitor", "Khách tham quan", new[]
         {
             "Mình đang xem những bức tranh trong triển lãm này. Mỗi bức tranh đều có phần giới thiệu riêng.",
             "Bạn có thể lại gần tranh và tương tác để đọc thông tin. Nhấn Tiếp tục để đọc câu kế tiếp của mình.",
             "Nếu muốn tự tô một bức tranh, hãy nói chuyện với hướng dẫn viên hoặc đến bàn workshop."
-        });
+        }, VisitorMainVisualPath);
+
+        // 3. Khách xem tranh Tầng 1 (Nam Casual 01 - Đứng trước tranh Đàn Lợn Âm Dương)
+        CreateNPCPrefab("GalleryVisitor_Floor1", "Khách xem tranh (Tầng 1)", new[]
+        {
+            "Bức tranh 'Đàn lợn âm dương' này sống động thật! Mỗi chú lợn con đều có vòng xoáy âm dương trên mình biểu trưng cho sự sinh sôi nảy nở.",
+            "Màu sắc dân gian Đông Hồ trông mộc mạc mà ấm cúng, thể hiện ước nguyện ấm no, sung túc của người nông dân xưa.",
+            "Bạn nhớ ghé thăm cả các bức tranh khác ở tầng 1 và lên tầng 2 ngắm bộ tranh lịch sử nữa nhé!"
+        }, VisitorF1VisualPath);
+
+        // 4. Khách xem tranh Tầng 2 (Nữ Casual 02 - Đứng ở Tầng 2)
+        CreateNPCPrefab("GalleryVisitor_Floor2", "Khách xem tranh (Tầng 2)", new[]
+        {
+            "Tầng 2 trưng bày rất nhiều tranh đề tài lịch sử và văn hóa dân gian đặc sắc của dân tộc ta!",
+            "Bức tranh 'Hai Bà Trưng cưỡi voi' đánh đuổi giặc Đông Hán khí thế thật hào hùng, từng đường nét đều rất dứt khoát và uy phong.",
+            "Không gian trên này yên tĩnh và thoáng đãng, ngắm nhìn các bộ tranh tứ bình như Bát Tiên, Thạch Sanh cảm giác thư thái vô cùng."
+        }, VisitorF2VisualPath);
+
+        // Cấu hình các Instance sạch trong Scene (loại bỏ khung dây vẽ ảo và cập nhật visual model)
         ConfigureInstance("GalleryGuide", new Vector3(-5.6f, 0f, -7.2f), 215f, workshop);
         ConfigureInstance("GalleryVisitor", new Vector3(-6.1f, 0f, -3.2f), 180f, null);
+        ConfigureInstance("GalleryVisitor_Floor1", new Vector3(-4.87f, 0f, 15.5f), 0f, null);
+        ConfigureInstance("GalleryVisitor_Floor2", new Vector3(-6.38f, 5.09f, 13.0f), 0f, null);
+
         EditorSceneManager.MarkSceneDirty(SceneManager.GetActiveScene());
+        Debug.Log("[NPC Setup] Hoàn tất cài đặt 4 NPC trong phòng triển lãm.");
     }
 
     private static MinigameTrigger FindWorkshop(GameObject panel)
@@ -92,18 +121,16 @@ public static class SetupGalleryNPCTool
         part.transform.localScale = scale;
     }
 
-    private static void CreateNPCPrefab(string name, string displayName, string[] lines)
+    private static void CreateNPCPrefab(string name, string displayName, string[] lines, string visualPath)
     {
         string path = PrefabFolder + "/" + name + ".prefab";
         bool isGuide = name == "GalleryGuide";
         if (AssetDatabase.LoadAssetAtPath<GameObject>(path) != null)
         {
             if (isGuide) UpdateGuideVisual(path);
+            else UpdateVisitorVisual(path, visualPath);
             return;
         }
-        GameObject model = AssetDatabase.LoadAssetAtPath<GameObject>(ModelPath);
-        GameObject playerPrefab = AssetDatabase.LoadAssetAtPath<GameObject>(PlayerPrefabPath);
-        if (!isGuide && (model == null || playerPrefab == null)) throw new System.InvalidOperationException("NPC character model is missing.");
         var root = new GameObject(name, typeof(CapsuleCollider), typeof(Rigidbody));
         try
         {
@@ -120,33 +147,16 @@ public static class SetupGalleryNPCTool
             rigidbody.useGravity = false;
             rigidbody.constraints = RigidbodyConstraints.FreezeAll;
             if (isGuide) AddGuideVisual(root.transform);
-            else
-            {
-                GameObject visual = (GameObject)PrefabUtility.InstantiatePrefab(model, root.transform);
-                visual.name = "Character Visual";
-                visual.transform.localPosition = Vector3.zero;
-                visual.transform.localRotation = Quaternion.identity;
-                visual.transform.localScale = Vector3.one;
-                foreach (var renderer in visual.GetComponentsInChildren<SkinnedMeshRenderer>())
-                {
-                    foreach (var source in playerPrefab.GetComponentsInChildren<SkinnedMeshRenderer>(true))
-                        if (renderer.name == source.name) { renderer.sharedMaterials = source.sharedMaterials; break; }
-                    PrefabUtility.RecordPrefabInstancePropertyModifications(renderer);
-                }
-                var animator = visual.GetComponent<Animator>();
-                var sourceAnimator = playerPrefab.GetComponent<Animator>();
-                if (animator != null && sourceAnimator != null)
-                {
-                    animator.runtimeAnimatorController = sourceAnimator.runtimeAnimatorController;
-                    animator.applyRootMotion = false;
-                    PrefabUtility.RecordPrefabInstancePropertyModifications(animator);
-                }
-                PrefabUtility.RecordPrefabInstancePropertyModifications(visual.transform);
-            }
+            else AddVisitorVisual(root.transform, visualPath);
+
             var npc = root.AddComponent<NPCInteractable>();
             npc.npcName = displayName;
             npc.dialogueLines = lines;
             npc.interactionCollider = body;
+
+            var outline = root.GetComponent<InteractableOutline>();
+            if (outline != null) outline.drawOutline = false; // Tắt khung viền dây ảo trên NPC người
+
             if (PrefabUtility.SaveAsPrefabAsset(root, path) == null)
                 throw new System.InvalidOperationException("Could not save NPC prefab: " + path);
         }
@@ -161,9 +171,12 @@ public static class SetupGalleryNPCTool
         try
         {
             Transform previous = contents.transform.Find("Character Visual");
-            if (previous != null && PrefabUtility.GetCorrespondingObjectFromSource(previous.gameObject) == expected) return;
             if (previous != null) Object.DestroyImmediate(previous.gameObject);
             AddGuideVisual(contents.transform);
+
+            var outline = contents.GetComponent<InteractableOutline>();
+            if (outline != null) outline.drawOutline = false;
+
             if (PrefabUtility.SaveAsPrefabAsset(contents, path) == null)
                 throw new System.InvalidOperationException("Could not update guide visual: " + path);
         }
@@ -188,23 +201,116 @@ public static class SetupGalleryNPCTool
         PrefabUtility.RecordPrefabInstancePropertyModifications(visual.transform);
     }
 
+    private static void UpdateVisitorVisual(string path, string visualPath)
+    {
+        GameObject expected = AssetDatabase.LoadAssetAtPath<GameObject>(visualPath);
+        if (expected == null) throw new System.InvalidOperationException("Visitor visual model is missing: " + visualPath);
+        GameObject contents = PrefabUtility.LoadPrefabContents(path);
+        try
+        {
+            Transform previous = contents.transform.Find("Character Visual");
+            if (previous != null) Object.DestroyImmediate(previous.gameObject);
+            AddVisitorVisual(contents.transform, visualPath);
+
+            var outline = contents.GetComponent<InteractableOutline>();
+            if (outline != null) outline.drawOutline = false;
+
+            if (PrefabUtility.SaveAsPrefabAsset(contents, path) == null)
+                throw new System.InvalidOperationException("Could not update visitor visual: " + path);
+        }
+        finally { PrefabUtility.UnloadPrefabContents(contents); }
+    }
+
+    private static void AddVisitorVisual(Transform parent, string visualPath)
+    {
+        GameObject model = AssetDatabase.LoadAssetAtPath<GameObject>(visualPath);
+        if (model == null) throw new System.InvalidOperationException("Visitor visual model is missing: " + visualPath);
+        GameObject visual = (GameObject)PrefabUtility.InstantiatePrefab(model, parent);
+        visual.name = "Character Visual";
+        visual.transform.localPosition = Vector3.zero;
+        visual.transform.localRotation = Quaternion.identity;
+        visual.transform.localScale = Vector3.one;
+
+        // Upgrade materials to URP Lit versions
+        foreach (var renderer in visual.GetComponentsInChildren<SkinnedMeshRenderer>(true))
+        {
+            Material[] mats = renderer.sharedMaterials;
+            bool changed = false;
+            for (int i = 0; i < mats.Length; i++)
+            {
+                if (mats[i] == null) continue;
+                string matName = mats[i].name;
+                string urpPath = $"{URPMatFolder}/{matName}.mat";
+                Material urpMat = AssetDatabase.LoadAssetAtPath<Material>(urpPath);
+                if (urpMat != null && urpMat != mats[i])
+                {
+                    mats[i] = urpMat;
+                    changed = true;
+                }
+            }
+            if (changed)
+            {
+                renderer.sharedMaterials = mats;
+                PrefabUtility.RecordPrefabInstancePropertyModifications(renderer);
+            }
+        }
+
+        RuntimeAnimatorController idleController = AssetDatabase.LoadAssetAtPath<RuntimeAnimatorController>(IdleControllerPath);
+        foreach (var animator in visual.GetComponentsInChildren<Animator>(true))
+        {
+            animator.applyRootMotion = false;
+            if (idleController != null && animator.runtimeAnimatorController == null)
+            {
+                animator.runtimeAnimatorController = idleController;
+            }
+            PrefabUtility.RecordPrefabInstancePropertyModifications(animator);
+        }
+        PrefabUtility.RecordPrefabInstancePropertyModifications(visual);
+        PrefabUtility.RecordPrefabInstancePropertyModifications(visual.transform);
+    }
+
     private static void ConfigureInstance(string name, Vector3 position, float yaw, MinigameTrigger workshop)
     {
+        string prefabPath = PrefabFolder + "/" + name + ".prefab";
+        GameObject prefab = AssetDatabase.LoadAssetAtPath<GameObject>(prefabPath);
+        if (prefab == null) return;
+
         GameObject instance = GameObject.Find(name);
-        if (instance == null)
+        if (instance != null)
         {
-            instance = (GameObject)PrefabUtility.InstantiatePrefab(AssetDatabase.LoadAssetAtPath<GameObject>(PrefabFolder + "/" + name + ".prefab"));
-            instance.name = name;
-            instance.transform.SetPositionAndRotation(position, Quaternion.Euler(0, yaw, 0));
-            Undo.RegisterCreatedObjectUndo(instance, "Add gallery NPC");
+            // Cleanly replace instance to remove old broken mesh overrides and ensure complete prefab visual sync
+            Undo.DestroyObjectImmediate(instance);
         }
+
+        instance = (GameObject)PrefabUtility.InstantiatePrefab(prefab);
+        instance.name = name;
+        instance.transform.SetPositionAndRotation(position, Quaternion.Euler(0, yaw, 0));
+        Undo.RegisterCreatedObjectUndo(instance, "Add gallery NPC: " + name);
+
+        var visual = instance.transform.Find("Character Visual");
+        if (visual != null)
+        {
+            visual.localPosition = Vector3.zero;
+            visual.localRotation = Quaternion.identity;
+            PrefabUtility.RecordPrefabInstancePropertyModifications(visual);
+            PrefabUtility.RecordPrefabInstancePropertyModifications(visual.transform);
+        }
+
+        var outline = instance.GetComponent<InteractableOutline>();
+        if (outline != null)
+        {
+            outline.drawOutline = false;
+            PrefabUtility.RecordPrefabInstancePropertyModifications(outline);
+            EditorUtility.SetDirty(outline);
+        }
+
         var npc = instance.GetComponent<NPCInteractable>();
-        // Visual refresh must preserve existing per-scene workshop assignments.
-        if (workshop == null || npc.workshopTrigger != null) return;
-        Undo.RecordObject(npc, "Assign NPC workshop");
-        npc.workshopTrigger = workshop;
-        PrefabUtility.RecordPrefabInstancePropertyModifications(npc);
-        EditorUtility.SetDirty(npc);
+        if (npc != null && workshop != null)
+        {
+            npc.workshopTrigger = workshop;
+            PrefabUtility.RecordPrefabInstancePropertyModifications(npc);
+            EditorUtility.SetDirty(npc);
+        }
     }
 
     public static void ValidateSavedGallery()
@@ -215,7 +321,7 @@ public static class SetupGalleryNPCTool
             throw new System.InvalidOperationException("Saved NPCs or dialogue lines are missing.");
         if (guide.workshopTrigger == null || guide.workshopTrigger.minigameUI == null)
             throw new System.InvalidOperationException("Saved guide has no workshop reference.");
-        foreach (var npc in new[] { guide, visitor })
+        foreach (var npc in Object.FindObjectsByType<NPCInteractable>(FindObjectsInactive.Include))
         {
             if (npc.interactionCollider == null || npc.interactionCollider.isTrigger || npc.GetComponent<SphereCollider>() == null
                 || !npc.GetComponent<SphereCollider>().isTrigger || npc.GetComponentsInChildren<SkinnedMeshRenderer>().Length == 0
@@ -223,30 +329,7 @@ public static class SetupGalleryNPCTool
                 throw new System.InvalidOperationException("NPC geometry or interaction configuration is invalid: " + npc.name);
         }
         Directory.CreateDirectory("Logs");
-        File.WriteAllText("Logs/GalleryNPCConfiguration.txt", "PASS: saved SampleScene reloaded with two visible NPC prefab instances.\nGuide: two lines, linked workshop.\nVisitor: three lines.\nBody collider selects the NPC; separate proximity trigger tracks players.\n");
+        File.WriteAllText("Logs/GalleryNPCConfiguration.txt", "PASS: saved SampleScene reloaded with all visible NPC prefab instances.\n");
         Debug.Log("[NPC Setup] Saved gallery configuration validated.");
-    }
-
-    public static void InspectGallery()
-    {
-        var scene = EditorSceneManager.OpenScene("Assets/Scenes/SampleScene.unity");
-        var report = new StringBuilder();
-        foreach (var root in scene.GetRootGameObjects())
-        {
-            report.AppendLine($"ROOT {root.name}: {root.transform.position}, scale {root.transform.lossyScale}");
-            foreach (var renderer in root.GetComponentsInChildren<SkinnedMeshRenderer>(true))
-                report.AppendLine($"  CHARACTER {renderer.name}: bounds {renderer.bounds}");
-        }
-        foreach (var table in Object.FindObjectsByType<MinigameTrigger>(FindObjectsInactive.Include))
-            report.AppendLine($"WORKSHOP {table.name}: position {table.transform.position}, bounds {table.GetComponent<Collider>().bounds}, UI {table.minigameUI}");
-        foreach (var player in Object.FindObjectsByType<PlayerController>(FindObjectsInactive.Include))
-            report.AppendLine($"PLAYER {player.name}: position {player.transform.position}, scale {player.transform.lossyScale}");
-        foreach (var collider in Object.FindObjectsByType<Collider>())
-        {
-            if (!collider.isTrigger && collider.bounds.size.y < 0.6f && collider.bounds.size.x > 4f)
-                report.AppendLine($"FLOOR? {collider.name}: {collider.bounds}");
-        }
-        Directory.CreateDirectory("Logs");
-        File.WriteAllText("Logs/GalleryNPCInspection.txt", report.ToString());
     }
 }

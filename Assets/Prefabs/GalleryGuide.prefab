@@ -34,7 +34,7 @@ Transform:
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:
-  - {fileID: 7649434732719038061}
+  - {fileID: 5862255991712913598}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!136 &7459503948550711644
@@ -125,7 +125,7 @@ MonoBehaviour:
   padding: 0.05
   pulse: 1
   pulseSpeed: 4
-  drawOutline: 1
+  drawOutline: 0
 --- !u!114 &8317915467303946996
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -147,7 +147,7 @@ MonoBehaviour:
     H\xE3y ch\u1ECDn b\xEAn d\u01B0\u1EDBi nh\xE9."
   interactionCollider: {fileID: 7459503948550711644}
   workshopTrigger: {fileID: 0}
---- !u!1001 &4887229759889149889
+--- !u!1001 &8692025402352060690
 PrefabInstance:
   m_ObjectHideFlags: 0
   serializedVersion: 2
@@ -204,8 +204,8 @@ PrefabInstance:
     m_AddedGameObjects: []
     m_AddedComponents: []
   m_SourcePrefab: {fileID: 100100000, guid: 2173da81ad5b12f4c9f7aabeb8988850, type: 3}
---- !u!4 &7649434732719038061 stripped
+--- !u!4 &5862255991712913598 stripped
 Transform:
   m_CorrespondingSourceObject: {fileID: 3024921203323818412, guid: 2173da81ad5b12f4c9f7aabeb8988850, type: 3}
-  m_PrefabInstance: {fileID: 4887229759889149889}
+  m_PrefabInstance: {fileID: 8692025402352060690}
   m_PrefabAsset: {fileID: 0}

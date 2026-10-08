@@ -296,7 +296,7 @@ public class DoorMenuTrigger : MonoBehaviour
         if (EventSystem.current != null && EventSystem.current.IsPointerOverGameObject()) return;
         Camera cam = Camera.main;
         if (cam != null)
-            TryInteractFromRay(cam.ScreenPointToRay(Input.mousePosition));
+            TryInteractFromRay(cam.ScreenPointToRay(GameplayInput.mousePosition));
     }
 
     public bool TryInteractFromRay(Ray ray)
@@ -308,37 +308,13 @@ public class DoorMenuTrigger : MonoBehaviour
             var pc = Object.FindAnyObjectByType<PlayerController>();
             if (pc != null) player = pc.transform;
         }
-        float camToPlayer = 0f;
-        if (Camera.main != null && player != null)
-            camToPlayer = Vector3.Distance(Camera.main.transform.position, player.position);
-
-        float raycastDistance = camToPlayer + maxInteractDistance + 5f;
-        RaycastHit[] hits = Physics.RaycastAll(ray, raycastDistance, ~0, QueryTriggerInteraction.Collide);
-        System.Array.Sort(hits, (a, b) => a.distance.CompareTo(b.distance));
-
-        foreach (RaycastHit hit in hits)
-        {
-            Transform hitTransform = hit.collider.transform;
-            if (PlayerDetector.IsPlayer(hit.collider))
-                continue;
-
-            DoorMenuTrigger hitDoor = hitTransform.GetComponent<DoorMenuTrigger>();
-            if (hitDoor == null) hitDoor = hitTransform.GetComponentInParent<DoorMenuTrigger>();
-            if (hitDoor != null)
-            {
-                float distToPlayer = player != null ? Vector3.Distance(player.position, hit.point) : hit.distance;
-                if (hitDoor != this || distToPlayer > maxInteractDistance) return false;
-                if (!IsOpen && IsBlockingUIOpen()) return false;
-                lastInputFrame = Time.frameCount;
-                if (minigameUI != null && minigameUI.activeSelf) CloseMinigame();
-                else ToggleDoorMenu();
-                return true;
-            }
-
-            // Triggers without an interactable are volumes, not line-of-sight blockers.
-            if (!hit.collider.isTrigger) return false;
-        }
-        return false;
+        if (!InteractionTargetResolver.TryRay(ray, player, maxInteractDistance, out var target)
+            || target.owner != this) return false;
+        if (!IsOpen && IsBlockingUIOpen()) return false;
+        lastInputFrame = Time.frameCount;
+        if (minigameUI != null && minigameUI.activeSelf) CloseMinigame();
+        else ToggleDoorMenu();
+        return true;
     }
 
     private static bool IsBlockingUIOpen()

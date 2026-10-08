@@ -80,7 +80,7 @@ public class ViewModeController : MonoBehaviour
 
         // Desktop/điện thoại: phím C chuyển Góc 1 <-> Góc 3.
         // Mobile đổi góc bằng nhúm 2 ngón zoom (qua ThirdPersonCamera).
-        if (Input.GetKeyDown(toggleViewKey))
+        if (GameplayInput.GetKeyDown(toggleViewKey))
         {
             ToggleView();
         }

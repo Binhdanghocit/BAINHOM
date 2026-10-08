@@ -4,7 +4,7 @@ using UnityEngine.UI;
 /// <summary>
 /// UI cảm ứng tạo runtime: joystick di chuyển (nổi, xuất hiện tại điểm chạm
 /// trong nửa trái màn hình), vùng vuốt phải để nhìn, và nút Nhảy góc phải dưới.
-/// Đọc Input.touch trực tiếp (không qua UI EventSystem) để chạy được cả trên
+/// Đọc GameplayInput touch trực tiếp (không qua UI EventSystem) để chạy được cả trên
 /// emulator không phát PointerEvent.
 /// </summary>
 public class MobileControlsOverlay : MonoBehaviour
@@ -174,14 +174,19 @@ public class MobileControlsOverlay : MonoBehaviour
             HideStick();
         }
         if (!PlatformHelper.IsTouchDevice() || !gameplayInputEnabled) return;
+        ProcessTouches();
+    }
+
+    private void ProcessTouches()
+    {
 
         // Quét trước: 2 ngón cùng lúc trên nửa phải (trừ vùng Nhảy) = nhúm zoom.
         // Hai ngón này không xoay camera trong lúc pinch.
         UpdatePinchState();
 
-        for (int i = 0; i < Input.touchCount; i++)
+        for (int i = 0; i < GameplayInput.touchCount; i++)
         {
-            Touch touch = Input.GetTouch(i);
+            GameplayInput.TouchSample touch = GameplayInput.GetTouch(i);
             bool isJumpArea = IsInJumpZone(touch.position);
 
             if (touch.phase == TouchPhase.Began)
@@ -250,9 +255,9 @@ public class MobileControlsOverlay : MonoBehaviour
         Vector2 posA = Vector2.zero;
         Vector2 posB = Vector2.zero;
 
-        for (int i = 0; i < Input.touchCount; i++)
+        for (int i = 0; i < GameplayInput.touchCount; i++)
         {
-            Touch t = Input.GetTouch(i);
+            GameplayInput.TouchSample t = GameplayInput.GetTouch(i);
             if (t.phase == TouchPhase.Ended || t.phase == TouchPhase.Canceled) continue;
             if (t.fingerId == moveFingerId || t.fingerId == jumpFingerId) continue;
             if (IsInJumpZone(t.position)) continue;
@@ -300,7 +305,7 @@ public class MobileControlsOverlay : MonoBehaviour
         rect.anchorMax = anchorMax;
         rect.sizeDelta = size;
         rect.anchoredPosition = anchoredPosition;
-        go.GetComponent<Image>().raycastTarget = false; // input đọc qua Input.touch trực tiếp
+        go.GetComponent<Image>().raycastTarget = false; // input đọc qua GameplayInput touch trực tiếp
         return rect;
     }
 

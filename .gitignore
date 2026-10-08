@@ -114,3 +114,7 @@ InitTestScene*.unity*
 
 # Local artwork previews and review artifacts; input manifests live in Assets/Editor.
 /ArtPreviews/
+
+# Temporary OpenXR runtime settings generated and cleaned by the build hook.
+/Assets/__RuntimeXRBuild/
+/Assets/__RuntimeXRBuild.meta

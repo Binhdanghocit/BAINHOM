@@ -15,7 +15,7 @@ public static class PlatformHelper
 #if UNITY_EDITOR
         return false;
 #else
-        return Input.touchSupported && SystemInfo.deviceType == DeviceType.Handheld;
+        return GameplayInput.touchSupported && SystemInfo.deviceType == DeviceType.Handheld;
 #endif
     }
 

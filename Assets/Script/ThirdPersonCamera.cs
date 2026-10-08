@@ -92,7 +92,7 @@ public class ThirdPersonCamera : MonoBehaviour
     void Update()
     {
         // 1. Bấm LeftAlt để Bật/Tắt trạng thái khóa chuột (PC only)
-        if (!PlatformHelper.IsTouchDevice() && Input.GetKeyDown(KeyCode.LeftAlt))
+        if (!PlatformHelper.IsTouchDevice() && GameplayInput.GetKeyDown(KeyCode.LeftAlt))
         {
             if (Cursor.lockState == CursorLockMode.Locked)
             {
@@ -122,15 +122,15 @@ public class ThirdPersonCamera : MonoBehaviour
             else
             {
                 // Ở TPS, Camera tự xoay tự do quanh nhân vật theo Mouse X
-                currentX += Input.GetAxis("Mouse X") * mouseSensitivity;
+                currentX += GameplayInput.GetAxis("Mouse X") * mouseSensitivity;
             }
 
             // Xoay lên/xuống (Pitch) luôn do Camera đảm nhận
-            currentY -= Input.GetAxis("Mouse Y") * mouseSensitivity;
+            currentY -= GameplayInput.GetAxis("Mouse Y") * mouseSensitivity;
             currentY = Mathf.Clamp(currentY, pitchMin, pitchMax);
 
             // Zoom con trỏ chuột
-            float scroll = Input.GetAxis("Mouse ScrollWheel");
+            float scroll = GameplayInput.GetAxis("Mouse ScrollWheel");
             distance -= scroll * zoomSpeed;
             distance = Mathf.Clamp(distance, minDistance, maxDistance);
         }

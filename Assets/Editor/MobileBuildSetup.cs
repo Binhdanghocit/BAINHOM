@@ -14,6 +14,7 @@ public static class MobileBuildSetup
     {
         EnsureScenesInBuild();
         ApplyAndroidPlayerSettings();
+        RuntimePlatformSetup.AndroidTouch();
         SwitchToAndroidTarget();
         LogSummary();
     }

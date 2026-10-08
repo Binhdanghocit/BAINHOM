@@ -1,0 +1,6 @@
+<linker>
+  <!-- OpenXR settings serialize feature types even when disabled. Keep their
+       runtime layouts and MonoScripts intact under IL2CPP managed stripping. -->
+  <assembly fullname="Unity.XR.MetaOpenXR" preserve="all" ignoreIfMissing="1" />
+  <assembly fullname="Unity.XR.AndroidOpenXR" preserve="all" ignoreIfMissing="1" />
+</linker>

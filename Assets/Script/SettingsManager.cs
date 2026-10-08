@@ -147,7 +147,7 @@ public class SettingsManager : MonoBehaviour
     private void Update()
     {
         // Nhấn ESC (PC / nút Back Android) hoặc nút menu controller (VR) để mở/đóng Settings
-        if (Input.GetKeyDown(KeyCode.Escape) || HandTriggerInput.WasMenuButtonPressedThisFrame())
+        if (GameplayInput.GetKeyDown(KeyCode.Escape) || HandTriggerInput.WasMenuButtonPressedThisFrame())
         {
             TogglePanel();
         }

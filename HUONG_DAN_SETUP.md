@@ -8,6 +8,7 @@ Dự án triển lãm tranh Đông Hồ dùng workshop tô vùng kín bằng `Co
 2. Mở bằng **6000.5.9f1**; chờ package resolve và import/compile xong. Không đổi phiên bản package chỉ để bỏ cảnh báo.
 3. Mở `Assets/Scenes/MainMenu.unity`. Triển lãm nằm ở `Assets/Scenes/SampleScene.unity`.
 4. Trong **File > Build Profiles**, kiểm Scene List: MainMenu đứng đầu, SampleScene đứng sau, cả hai được bật. Cài module Windows/Android tương ứng qua Hub nếu thiếu; chờ reimport hoàn tất sau khi đổi target.
+5. Trước build, chọn cấu hình trong **Tools > Build Setup**: Windows + optional PCVR, Android Touch hoặc Quest OpenXR. Android Touch và Quest là hai cấu hình riêng; dùng Input System Package (New), tránh Both trên Android. Lưu công việc trước khi đổi input/target. Xem [hướng dẫn build và kiểm runtime XR](KIEM_THU_RUNTIME_XR.md) cho cấu hình, quy tắc tương tác và checklist thiết bị.
 5. Bấm Play, dùng nút bắt đầu tham quan. Trong gallery thử tranh, NPC và workshop qua cửa/bàn/hướng dẫn viên.
 6. Dừng Play trước khi cấu hình; thay đổi trong Play thường mất khi dừng. Sau mỗi lượt chỉnh scene, **Ctrl+S**, kiểm dấu `*` trên tên scene đã hết.
 

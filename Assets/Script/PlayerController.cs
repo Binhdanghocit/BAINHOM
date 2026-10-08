@@ -60,12 +60,12 @@ public class PlayerController : MonoBehaviour
 
         UpdateTouchInput();
 
-        float horizontal = Mathf.Clamp(Input.GetAxisRaw("Horizontal") + touchMove.x, -1f, 1f);
-        float vertical = Mathf.Clamp(Input.GetAxisRaw("Vertical") + touchMove.y, -1f, 1f);
+        float horizontal = Mathf.Clamp(GameplayInput.GetAxisRaw("Horizontal") + touchMove.x, -1f, 1f);
+        float vertical = Mathf.Clamp(GameplayInput.GetAxisRaw("Vertical") + touchMove.y, -1f, 1f);
         Vector3 direction = new Vector3(horizontal, 0f, vertical).normalized;
 
         // Đẩy joystick hết cỡ trên điện thoại = chạy (tương đương giữ Shift)
-        bool isRunning = Input.GetKey(KeyCode.LeftShift) || touchMove.sqrMagnitude > 0.8f;
+        bool isRunning = GameplayInput.GetKey(KeyCode.LeftShift) || touchMove.sqrMagnitude > 0.8f;
         float targetSpeed = isRunning ? runSpeed : walkSpeed;
 
         // Kiểm tra xem chuột có đang bị khóa và đang ở góc nhìn thứ nhất (distance <= 0.3f)
@@ -78,7 +78,7 @@ public class PlayerController : MonoBehaviour
             // Ở FPS, xoay thân nhân vật theo Mouse X / vuốt ngang
             if (isCursorLocked)
             {
-                float mouseX = Input.GetAxis("Mouse X") * mouseSensitivity;
+                float mouseX = GameplayInput.GetAxis("Mouse X") * mouseSensitivity;
                 transform.Rotate(Vector3.up * mouseX);
             }
             if (touchLook.x != 0f)
@@ -125,7 +125,7 @@ public class PlayerController : MonoBehaviour
         }
 
         // Xử lý Nhảy và Trọng lực (tap 2 ngón trên điện thoại = nhảy)
-        if ((Input.GetButtonDown("Jump") || touchJump) && isGrounded)
+        if ((GameplayInput.GetButtonDown("Jump") || touchJump) && isGrounded)
         {
             velocity.y = Mathf.Sqrt(jumpHeight * -2f * gravity);
             animator.SetBool("IsGrounded", false);

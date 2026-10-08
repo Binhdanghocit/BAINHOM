@@ -184,39 +184,8 @@ public class CrosshairReticle : MonoBehaviour
         PlayerInteraction interaction = FindAnyObjectByType<PlayerInteraction>();
         float targetDistance = interaction != null ? interaction.interactDistance : 3.5f;
         Transform playerTransform = interaction != null ? interaction.transform : null;
-        float camToPlayer = (playerTransform != null && aimCamera != null)
-            ? Vector3.Distance(aimCamera.transform.position, playerTransform.position)
-            : 0f;
-        float maxRay = Mathf.Max(rayDistance, camToPlayer + targetDistance + 5f);
-        RaycastHit[] hits = Physics.RaycastAll(ray, maxRay, ~0, QueryTriggerInteraction.Collide);
-        System.Array.Sort(hits, (a, b) => a.distance.CompareTo(b.distance));
-        foreach (RaycastHit hit in hits)
-        {
-            if (PlayerDetector.IsPlayer(hit.collider)) continue;
-            NPCInteractable npc = hit.collider.GetComponentInParent<NPCInteractable>();
-            if (npc != null && !npc.isActiveAndEnabled)
-            {
-                if (!hit.collider.isTrigger) return null;
-                continue;
-            }
-            if (npc != null && !npc.IsInteractionCollider(hit.collider)) continue;
-            InteractableOutline outline = hit.collider.GetComponentInParent<InteractableOutline>();
-            DoorMenuTrigger door = hit.collider.GetComponentInParent<DoorMenuTrigger>();
-            bool interactive = door != null || hit.collider.GetComponentInParent<PaintingTrigger>() != null
-                || hit.collider.GetComponentInParent<PaintingInfo>() != null
-                || hit.collider.GetComponentInParent<NPCInteractable>() != null
-                || hit.collider.GetComponentInParent<MinigameTrigger>() != null;
-            if (interactive)
-            {
-                float allowedDistance = door != null ? door.maxInteractDistance : targetDistance;
-                float actualDistance = playerTransform != null 
-                    ? Vector3.Distance(playerTransform.position, hit.point) 
-                    : hit.distance;
-                return actualDistance <= allowedDistance && outline != null && outline.IsProximityActive ? outline : null;
-            }
-            // Match PlayerInteraction: volumes are skipped, solid geometry blocks sight.
-            if (!hit.collider.isTrigger) return null;
-        }
-        return null;
+        if (!InteractionTargetResolver.TryRay(ray, playerTransform, targetDistance, out var target)) return null;
+        InteractableOutline outline = target.collider.GetComponentInParent<InteractableOutline>();
+        return outline != null && outline.IsProximityActive ? outline : null;
     }
 }

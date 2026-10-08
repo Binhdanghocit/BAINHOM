@@ -139,6 +139,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::NPCInteractable
   npcName: "H\u01B0\u1EDBng d\u1EABn vi\xEAn"
+  dialogueData: {fileID: 11400000, guid: fd811ba07f21922f4942a10e207ebf88, type: 2}
   dialogueLines:
   - "Ch\xE0o m\u1EEBng b\u1EA1n \u0111\u1EBFn v\u1EDBi tri\u1EC3n l\xE3m tranh \u0110\xF4ng
     H\u1ED3! B\u1EA1n c\xF3 th\u1EC3 l\u1EA1i g\u1EA7n c\xE1c b\u1EE9c tranh \u0111\u1EC3

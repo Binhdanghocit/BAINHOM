@@ -52,6 +52,7 @@ public static class TestGameplayRegressionSuite
             ("Tracking pose and viewport projection", TestVRProjection),
             ("NPC next-line button and nested modal movement lock", TestDialogueAndModal),
             ("Guide choices and workshop close ownership", TestGuideChoices),
+            ("Question dialogue, invalid content and missing workshop escape", TestQuestionDialogue),
             ("NPC prompt ownership, disable and multiple colliders", TestNPCPromptOwnership),
             ("NPC ray ignores another NPC proximity volume", TestNPCBodyRay),
             ("Workshop modal guards and door-to-workshop transition", TestWorkshopGuards),
@@ -223,6 +224,54 @@ public static class TestGameplayRegressionSuite
         Check(!dialogue.IsSpeaking && !player.enabled, "Closing dialogue unlocked movement under Settings.");
         settings.ClosePanel();
         Check(player.enabled, "Player movement was not restored after the final modal closed.");
+    }
+
+    private static void TestQuestionDialogue()
+    {
+        var player = Object("Player").AddComponent<PlayerController>();
+        var dialogue = Object("Dialogue").AddComponent<DialogueUIManager>();
+        Call(dialogue, "Awake");
+        var npc = Object("NPC", typeof(BoxCollider)).AddComponent<NPCInteractable>();
+        var other = Object("Other NPC", typeof(BoxCollider)).AddComponent<NPCInteractable>();
+        var data = ScriptableObject.CreateInstance<NPCDialogueData>();
+        resources.Add(data);
+        data.options = new[]
+        {
+            null,
+            new DialogueOption { question = " ", answer = "Invalid" },
+            new DialogueOption { question = "Invalid", answer = " " },
+            new DialogueOption { question = "Invalid action", answer = "Invalid", action = (DialogueAction)99 },
+            new DialogueOption { question = "Question", answer = "Personal answer", action = DialogueAction.AskAnother },
+            new DialogueOption { question = "Workshop", answer = "Invitation", action = DialogueAction.EnterWorkshop },
+            new DialogueOption { question = "Goodbye", answer = "Farewell", action = DialogueAction.EndConversation }
+        };
+        data.exitLabel = " ";
+        npc.dialogueData = data;
+        dialogue.StartDialogue(npc);
+        Check(Get<List<Button>>(dialogue, "questionButtons").Count == 3, "Empty questions/answers or invalid actions leaked into UI.");
+        Check(Get<Button>(dialogue, "continueButton").IsActive() && !player.enabled, "Question modal lacks exit or gameplay lock.");
+        dialogue.StartDialogue(other);
+        Check(dialogue.IsConversationWith(npc), "Another NPC replaced the active modal owner.");
+        Get<List<Button>>(dialogue, "questionButtons")[0].onClick.Invoke();
+        Check(Get<TMPro.TextMeshProUGUI>(dialogue, "bodyText").text == "Personal answer", "Wrong answer for selected question.");
+        Get<Button>(dialogue, "nextLineButton").onClick.Invoke();
+        Check(Get<GameObject>(dialogue, "questionRoot").activeSelf && !player.enabled, "Return to questions unlocked movement.");
+        Get<List<Button>>(dialogue, "questionButtons")[1].onClick.Invoke();
+        Get<Button>(dialogue, "nextLineButton").onClick.Invoke();
+        Check(dialogue.IsSpeaking && Get<Button>(dialogue, "continueButton").IsActive(), "Missing workshop trapped the player.");
+        Get<Button>(dialogue, "continueButton").onClick.Invoke();
+        Check(!dialogue.IsSpeaking && player.enabled, "Missing workshop escape failed.");
+        dialogue.StartDialogue(npc);
+        Get<List<Button>>(dialogue, "questionButtons")[2].onClick.Invoke();
+        Check(dialogue.IsSpeaking, "Farewell vanished before the player could read it.");
+        Get<Button>(dialogue, "nextLineButton").onClick.Invoke();
+        Check(!dialogue.IsSpeaking && player.enabled, "Farewell action failed to end conversation.");
+        data.options = null;
+        dialogue.StartDialogue(npc);
+        Check(Get<List<Button>>(dialogue, "questionButtons").Count == 0 && Get<Button>(dialogue, "continueButton").IsActive(),
+            "Empty asset must remain escapable.");
+        Get<Button>(dialogue, "continueButton").onClick.Invoke();
+        Check(!dialogue.IsSpeaking && player.enabled, "Empty asset escape failed.");
     }
 
     private static void TestPaintingOwnership()

@@ -12028,8 +12028,12 @@ MonoBehaviour:
   fpsDropdown: {fileID: 834011650}
   bgmAudioSource: {fileID: 1284770633}
   localBGMList:
-  - {fileID: 8300000, guid: 04a2cc9a54c39db44af4bbaa5cb83f8b, type: 3}
-  - {fileID: 8300000, guid: a9446981d46a5fd4b9b50fbb87958138, type: 3}
+  - {fileID: 8300000, guid: 0447e89d0ff2475aa0efd7610db8e263, type: 3}
+  - {fileID: 8300000, guid: b024899047a34e038de85261c7f92edb, type: 3}
+  - {fileID: 8300000, guid: 5a3e3d260b744bc095df2ffcd6ceb786, type: 3}
+  - {fileID: 8300000, guid: acd61a332ba546c2bb7c1e8ef6863b1a, type: 3}
+  - {fileID: 8300000, guid: 247592ad474b40d6a083ad17b7d4a240, type: 3}
+  - {fileID: 8300000, guid: bad8e925aa3d46a1a3281ef24c6df773, type: 3}
   crosshair: {fileID: 0}
   crosshairEnabled: 1
   floatingJoystickEnabled: 1

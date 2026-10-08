@@ -60,7 +60,7 @@ public static class TestMainMenuPlayMode
         EditorApplication.update += Tick;
     }
 
-    private static void ClickThroughUI(Button button)
+    private static void ClickThroughUI(Button button, bool click = true)
     {
         Check(button != null && button.IsActive() && button.IsInteractable(), "Requested button is active and interactable");
         Check(EventSystem.current != null, "EventSystem exists");
@@ -79,6 +79,7 @@ public static class TestMainMenuPlayMode
         var hit = hits[0];
         var clickTarget = ExecuteEvents.GetEventHandler<IPointerClickHandler>(hit.gameObject);
         Check(clickTarget == button.gameObject, "First UI raycast belongs to " + button.name + " (hit " + hit.gameObject.name + ")");
+        if (!click) return;
         pointer.pointerCurrentRaycast = pointer.pointerPressRaycast = hit;
         pointer.pointerEnter = hit.gameObject;
         pointer.pressPosition = pointer.position;
@@ -95,6 +96,14 @@ public static class TestMainMenuPlayMode
         Check(workshop != null && !workshop.workshopPanel.activeSelf, "Saved MainMenu workshop remains closed");
         var menu = UnityEngine.Object.FindAnyObjectByType<MainMenuManager>();
         Check(menu != null, "MainMenuManager initializes");
+        var xr = UnityEngine.XR.Management.XRGeneralSettings.Instance;
+        Check(xr != null && !xr.InitManagerOnStart && xr.Manager.activeLoader == null,
+            "Flat PC menu does not initialize the configured OpenXR loader");
+        Check(xr.Manager.activeLoaders.Count > 0, "PCVR loader remains available for explicit VR entry");
+        var vr = UnityEngine.Object.FindObjectsByType<Button>().Single(button => button.name == "PlayVRButton");
+        Check(vr.onClick.GetPersistentEventCount() == 0, "VR button does not inherit the flat Play callback");
+        Check(vr.GetComponentInChildren<TMPro.TMP_Text>().text == "Chơi VR (Quest Link)", "PC menu labels Quest Link entry");
+        ClickThroughUI(vr, false);
         var play = UnityEngine.Object.FindObjectsByType<Button>().Single(button =>
             Enumerable.Range(0, button.onClick.GetPersistentEventCount()).Any(i => button.onClick.GetPersistentMethodName(i) == "PlayGame"));
         menu.minLoadingTime = 0;

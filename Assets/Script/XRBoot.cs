@@ -144,7 +144,7 @@ public class XRBoot : MonoBehaviour
         // sẽ khiến XRManager bắn warning "Call to ... without an initialized manager",
         // và DeinitializeLoader còn reset cờ khiến OnDisable ở lần thoát sau cũng warning theo.
         if (manager == null || !manager.isInitializationComplete || manager.activeLoader == null) return;
-        manager.StopSubsystems();
+        // XRManagerSettings.DeinitializeLoader already stops subsystems.
         manager.DeinitializeLoader();
         Debug.Log("[XRBoot] Đã thoát chế độ VR, về chế độ phẳng.");
     }

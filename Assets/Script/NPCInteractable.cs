@@ -8,6 +8,9 @@ public class NPCInteractable : MonoBehaviour
     [Header("Thông tin NPC")]
     public string npcName = "Người dân";
 
+    [Tooltip("Hội thoại chọn câu hỏi. Để trống để dùng dialogueLines theo luồng cũ.")]
+    public NPCDialogueData dialogueData;
+
     [Tooltip("Các dòng hội thoại, hiện lần lượt mỗi lần bấm E")]
     public string[] dialogueLines;
     [Tooltip("Collider thân nhân vật dùng để chọn bằng ray. Để trống giữ hành vi cũ; không chọn volume phát hiện khoảng cách.")]

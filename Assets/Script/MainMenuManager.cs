@@ -20,10 +20,12 @@ public class MainMenuManager : MonoBehaviour
     private Slider progressBar;
     private TextMeshProUGUI progressText;
     private bool isLoading;
+    private bool isStartingVR;
 
     private void Awake()
     {
         BuildLoadingUI();
+        BuildPCVRButton();
         // Main Menu dùng Canvas Screen Space. Cầu nối này biến ray/trigger từ
         // controller VR thành PointerEvent cho chính các Button/Slider hiện có.
         VRUIInputBridge.EnsureInstance();
@@ -32,7 +34,7 @@ public class MainMenuManager : MonoBehaviour
     // Gọi khi nhấn nút Play
     public void PlayGame()
     {
-        if (isLoading) return;
+        if (isLoading || isStartingVR) return;
 
         // Tự động kiểm tra: nếu chưa sửa tên trong Inspector thì fallback về SampleScene
         if (!Application.CanStreamedLevelBeLoaded(gallerySceneName))
@@ -55,14 +57,42 @@ public class MainMenuManager : MonoBehaviour
     // Trên máy không có kính, XRBoot tự bỏ qua và vào chế độ phẳng như PlayGame.
     public void PlayGameVR()
     {
-        if (isLoading) return;
+        if (isLoading || isStartingVR) return;
+        isStartingVR = true;
         StartCoroutine(PlayVRRoutine());
     }
 
     private System.Collections.IEnumerator PlayVRRoutine()
     {
-        yield return XRBoot.StartXRRoutine();
-        PlayGame();
+        try
+        {
+            yield return XRBoot.StartXRRoutine();
+            isStartingVR = false;
+            PlayGame();
+        }
+        finally { isStartingVR = false; }
+    }
+
+    private void BuildPCVRButton()
+    {
+        // Quest APK starts XR through XRBoot. Only desktop needs a manual entry.
+        if (!Application.isEditor && Application.platform != RuntimePlatform.WindowsPlayer
+            && Application.platform != RuntimePlatform.LinuxPlayer
+            && Application.platform != RuntimePlatform.OSXPlayer) return;
+        foreach (Button candidate in FindObjectsByType<Button>(FindObjectsInactive.Include))
+        {
+            if (candidate.gameObject.scene != gameObject.scene || candidate.name != "PlayButton") continue;
+            if (candidate.transform.parent.Find("PlayVRButton") != null) return;
+            Button vrButton = Instantiate(candidate, candidate.transform.parent);
+            vrButton.name = "PlayVRButton";
+            vrButton.transform.SetSiblingIndex(candidate.transform.GetSiblingIndex() + 1);
+            vrButton.onClick = new Button.ButtonClickedEvent();
+            vrButton.onClick.AddListener(PlayGameVR);
+            TMP_Text label = vrButton.GetComponentInChildren<TMP_Text>(true);
+            if (label != null) label.text = "Chơi VR (Quest Link)";
+            vrButton.gameObject.SetActive(true);
+            return;
+        }
     }
 
     // Gọi khi nhấn nút Quit

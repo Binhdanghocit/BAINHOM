@@ -226,12 +226,22 @@ public static class TestAudioSettingsPlayMode
                         "Actual saved gallery SFX metadata reaches the manager created before gallery load");
                     var gallerySettings = UnityEngine.Object.FindAnyObjectByType<SettingsManager>();
                     var galleryClips = (List<AudioClip>)typeof(SettingsManager).GetField("dropdownClips", Private).GetValue(gallerySettings);
-                    int other = galleryClips.FindIndex(clip => clip != null && !menuClips.Contains(clip)
+                    int other = galleryClips.FindIndex(clip => clip != null && clip != selected
                         && clip != a && clip != b && clip != c);
                     Check(other >= 0, "Gallery catalog includes actual saved gallery music from duplicate manager");
                     gallerySettings.bgmDropdown.value = other;
                     selected = galleryClips[other];
                     Check(owner.bgmSource.clip == selected, "Gallery dropdown selects actual gallery clip by reference");
+                    // Both saved scenes now share the same music. Keep the missing-local-clip
+                    // regression using a transient gallery-only fixture instead of scene assumptions.
+                    var galleryOnly = AudioClip.Create("Gallery-only regression fixture", 44100 * 5, 1, 44100, false);
+                    AudioManager.RegisterSceneBGM(null, new[] { galleryOnly });
+                    typeof(SettingsManager).GetMethod("SetupBGMDropdown", Private).Invoke(gallerySettings, null);
+                    int fixtureIndex = galleryClips.IndexOf(galleryOnly);
+                    Check(fixtureIndex >= 0, "Transient gallery-only clip appears in dropdown");
+                    gallerySettings.bgmDropdown.value = fixtureIndex;
+                    selected = galleryOnly;
+                    Check(owner.bgmSource.clip == selected, "Gallery-only selection reaches persistent playback");
                     gallerySettings.GoToMainMenu();
                     break;
                 case 6:

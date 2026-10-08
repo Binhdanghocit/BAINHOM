@@ -1,0 +1,26 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: d4af0a2058527afbf3071e674c420fe0, type: 3}
+  m_Name: GalleryVisitor_Floor2
+  m_EditorClassIdentifier: Assembly-CSharp::NPCDialogueData
+  opening: "Chào bạn! Những bức tranh ở khu này khiến mình muốn dừng lại lâu hơn."
+  options:
+  - question: "Khu này có gì khác tầng dưới?"
+    answer: "Ở đây, mình chú ý hơn đến những bức tranh về nhân vật lịch sử. Cảm giác khi ngắm chúng hào hùng hơn những cảnh đời thường mình vừa xem."
+    action: 0
+  - question: "Bạn gợi ý tôi xem bức nào?"
+    answer: "Mình gợi ý bức Hai Bà Trưng cưỡi voi. Hình ảnh Hai Bà xung trận khiến mình cảm nhận rõ khí thế mạnh mẽ của bức tranh."
+    action: 0
+  - question: "Tôi sẽ khám phá tiếp."
+    answer: "Chúc bạn tìm được những điều thú vị ở khu này nhé!"
+    action: 1
+  exitLabel: "Đóng hội thoại"

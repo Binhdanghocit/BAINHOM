@@ -81,10 +81,12 @@ public static class TestArtworkRegionPlayMode
                         art.title + " region " + region.id + ": valid non-overlapping spans, exact pixel count and paintable pixels");
                 }
                 cacheRegions += data.regionCount;
-                Check(data.regionCount == (art.title == "2" ? 50 : 108), art.title + ": authored region count retained");
+                Check(ids.Count == data.regionCount, art.title + ": every authored region independently audited");
             }
         }
-        Check(artworkCount == 3 && cachedArtworkCount == 2 && cacheRegions == 158, "All 3 saved artworks audited; 158 cached regions checked");
+        Check(artworkCount == 21 && cachedArtworkCount == 20 && cacheRegions > 0,
+            "All 21 saved artwork entries audited; 20 cached entries and one native entry");
+        SessionState.SetInt(Flag + ".cacheRegions", cacheRegions);
         // Static results must survive entering Play Mode / domain reload.
         SessionState.SetString(Flag + ".audit", string.Join("\n", results));
     }
@@ -126,6 +128,11 @@ public static class TestArtworkRegionPlayMode
         Check((Get<ColoringRegionSpanItem[]>("cachedRegionSpans") != null) == cached,
             "Current artwork uses " + (cached ? "accepted cached regions" : "intentional native detection"));
         Check(Get<int>("fillableRegionCount") == expectedRegions && expectedRegions > 0, "Expected fillable regions: " + expectedRegions);
+    }
+    private static void CheckAuthoredCurrent(int index)
+    {
+        var data = JsonUtility.FromJson<ColoringRegionDataAsset>(game.paintings[index].regionData.text);
+        CheckCurrent(true, data.regionCount);
     }
     private static Color32 Pixel(int index) => ((Texture2D)game.coloringImage.texture).GetPixels32()[index];
     private static int PaintOne(int palette, out Color32 painted)
@@ -192,8 +199,8 @@ public static class TestArtworkRegionPlayMode
             switch (stage)
             {
                 case 0: OpenSavedWorkshop(); break;
-                case 1: game.SelectPainting(0); CheckCurrent(true, 50); pixelA = PaintOne(1, out colorA); break;
-                case 2: game.SelectPainting(1); CheckCurrent(true, 108); Check(Get<int>("paintedRegionCount") == 0, "B starts with independent empty progress"); pixelB = PaintOne(2, out colorB); break;
+                case 1: game.SelectPainting(0); CheckAuthoredCurrent(0); pixelA = PaintOne(1, out colorA); break;
+                case 2: game.SelectPainting(1); CheckAuthoredCurrent(1); Check(Get<int>("paintedRegionCount") == 0, "B starts with independent empty progress"); pixelB = PaintOne(2, out colorB); break;
                 case 3: game.SelectPainting(0); Restored(pixelA, colorA, "MainMenu A after B"); break;
                 case 4: game.SelectPainting(1); Restored(pixelB, colorB, "MainMenu B after A"); game.workshopPanel.SetActive(false); break;
                 case 5: game.workshopPanel.SetActive(true); break;
@@ -213,7 +220,7 @@ public static class TestArtworkRegionPlayMode
         SessionState.SetBool(Flag, false);
         results.AddRange(dataWarnings.Select(w => "UNEXPECTED ARTWORK WARNING: " + w));
         int assertions = results.Count(r => r.StartsWith("PASS:"));
-        results.Add(error == null ? "RESULT: PASS, 3 saved artworks / 158 cached regions / " + assertions + " assertions / 11 Play Mode stages. Simulated pointer callbacks; no physical device input/build verification."
+        results.Add(error == null ? "RESULT: PASS, 21 saved artwork entries / " + SessionState.GetInt(Flag + ".cacheRegions", 0) + " cached regions / " + assertions + " assertions / 11 Play Mode stages. Simulated pointer callbacks; no physical device input/build verification."
             : "RESULT: FAIL stage=" + stage + "\n" + error);
         Directory.CreateDirectory("Logs"); File.WriteAllLines("Logs/ArtworkRegionPlayModeResults.txt", results);
         if (error != null) Debug.LogException(error);

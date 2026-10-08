@@ -42,38 +42,12 @@ public static class SetupGalleryNPCTool
         var workshop = FindWorkshop(coloring.workshopPanel);
         if (workshop == null) workshop = CreateWorkshopTable(coloring.workshopPanel);
 
-        // 1. Hướng dẫn viên (Business Man)
-        CreateNPCPrefab("GalleryGuide", "Hướng dẫn viên", new[]
-        {
-            "Chào mừng bạn đến với triển lãm tranh Đông Hồ! Bạn có thể lại gần các bức tranh để xem thông tin.",
-            "Bạn muốn qua workshop tô màu hay tiếp tục tham quan? Hãy chọn bên dưới nhé."
-        }, GuideVisualPath);
+        CreateNPCPrefab("GalleryGuide", "Hướng dẫn viên", GetOrCreateDialogue("GalleryGuide"), GuideVisualPath);
+        CreateNPCPrefab("GalleryVisitor", "Khách sảnh chính", GetOrCreateDialogue("GalleryVisitor"), VisitorMainVisualPath);
+        CreateNPCPrefab("GalleryVisitor_Floor1", "Khách tầng 1", GetOrCreateDialogue("GalleryVisitor_Floor1"), VisitorF1VisualPath);
+        CreateNPCPrefab("GalleryVisitor_Floor2", "Khách tầng 2", GetOrCreateDialogue("GalleryVisitor_Floor2"), VisitorF2VisualPath);
 
-        // 2. Khách tham quan sảnh chính (Nữ Casual 01)
-        CreateNPCPrefab("GalleryVisitor", "Khách tham quan", new[]
-        {
-            "Mình đang xem những bức tranh trong triển lãm này. Mỗi bức tranh đều có phần giới thiệu riêng.",
-            "Bạn có thể lại gần tranh và tương tác để đọc thông tin. Nhấn Tiếp tục để đọc câu kế tiếp của mình.",
-            "Nếu muốn tự tô một bức tranh, hãy nói chuyện với hướng dẫn viên hoặc đến bàn workshop."
-        }, VisitorMainVisualPath);
-
-        // 3. Khách xem tranh Tầng 1 (Nam Casual 01 - Đứng trước tranh Đàn Lợn Âm Dương)
-        CreateNPCPrefab("GalleryVisitor_Floor1", "Khách xem tranh (Tầng 1)", new[]
-        {
-            "Bức tranh 'Đàn lợn âm dương' này sống động thật! Mỗi chú lợn con đều có vòng xoáy âm dương trên mình biểu trưng cho sự sinh sôi nảy nở.",
-            "Màu sắc dân gian Đông Hồ trông mộc mạc mà ấm cúng, thể hiện ước nguyện ấm no, sung túc của người nông dân xưa.",
-            "Bạn nhớ ghé thăm cả các bức tranh khác ở tầng 1 và lên tầng 2 ngắm bộ tranh lịch sử nữa nhé!"
-        }, VisitorF1VisualPath);
-
-        // 4. Khách xem tranh Tầng 2 (Nữ Casual 02 - Đứng ở Tầng 2)
-        CreateNPCPrefab("GalleryVisitor_Floor2", "Khách xem tranh (Tầng 2)", new[]
-        {
-            "Tầng 2 trưng bày rất nhiều tranh đề tài lịch sử và văn hóa dân gian đặc sắc của dân tộc ta!",
-            "Bức tranh 'Hai Bà Trưng cưỡi voi' đánh đuổi giặc Đông Hán khí thế thật hào hùng, từng đường nét đều rất dứt khoát và uy phong.",
-            "Không gian trên này yên tĩnh và thoáng đãng, ngắm nhìn các bộ tranh tứ bình như Bát Tiên, Thạch Sanh cảm giác thư thái vô cùng."
-        }, VisitorF2VisualPath);
-
-        // Cấu hình các Instance sạch trong Scene (loại bỏ khung dây vẽ ảo và cập nhật visual model)
+        // Only fill missing data/instances; preserve authored geometry and placement.
         ConfigureInstance("GalleryGuide", new Vector3(-5.6f, 0f, -7.2f), 215f, workshop);
         ConfigureInstance("GalleryVisitor", new Vector3(-6.1f, 0f, -3.2f), 180f, null);
         ConfigureInstance("GalleryVisitor_Floor1", new Vector3(-4.87f, 0f, 15.5f), 0f, null);
@@ -81,6 +55,59 @@ public static class SetupGalleryNPCTool
 
         EditorSceneManager.MarkSceneDirty(SceneManager.GetActiveScene());
         Debug.Log("[NPC Setup] Hoàn tất cài đặt 4 NPC trong phòng triển lãm.");
+    }
+
+    // Defaults are used only when the asset is absent. Inspector edits are never reset.
+    private static NPCDialogueData GetOrCreateDialogue(string name)
+    {
+        if (!AssetDatabase.IsValidFolder("Assets/Dialogue")) AssetDatabase.CreateFolder("Assets", "Dialogue");
+        string path = "Assets/Dialogue/" + name + ".asset";
+        var existing = AssetDatabase.LoadAssetAtPath<NPCDialogueData>(path);
+        if (existing != null) return existing;
+        var data = ScriptableObject.CreateInstance<NPCDialogueData>();
+        data.exitLabel = "Đóng hội thoại";
+        switch (name)
+        {
+            case "GalleryGuide":
+                data.opening = "Chào mừng bạn đến với triển lãm tranh Đông Hồ! Bạn muốn bắt đầu tham quan hay thử tô một bức tranh?";
+                data.options = new[]
+                {
+                    new DialogueOption { question = "Tôi nên bắt đầu ở đâu?", answer = "Bạn có thể bắt đầu từ những bức tranh ở sảnh, rồi khám phá tầng 1 và tầng 2. Mỗi bức đều có phần giới thiệu để bạn tìm hiểu thêm.", action = DialogueAction.AskAnother },
+                    new DialogueOption { question = "Tôi muốn thử tô tranh", answer = "Mời bạn ghé workshop để tự tô một bức tranh Đông Hồ. Bạn có thể quay lại tham quan sau khi trải nghiệm.", action = DialogueAction.EnterWorkshop },
+                    new DialogueOption { question = "Cảm ơn, tôi tham quan tiếp.", answer = "Chúc bạn có một buổi tham quan thú vị!", action = DialogueAction.EndConversation },
+                };
+                break;
+            case "GalleryVisitor":
+                data.opening = "Chào bạn! Mình đang ngắm tranh, càng nhìn càng thấy nhiều điều thú vị.";
+                data.options = new[]
+                {
+                    new DialogueOption { question = "Bạn thích bức nào nhất?", answer = "Mình thích bức Đám cưới chuột nhất. Cảnh đoàn chuột nối nhau làm mình cứ muốn nhìn thêm.", action = DialogueAction.AskAnother },
+                    new DialogueOption { question = "Điều gì khiến bạn chú ý?", answer = "Mình thích màu sắc và những chi tiết nhỏ trong tranh. Có những nét thoạt nhìn rất đơn giản mà lại khiến mình nhớ lâu.", action = DialogueAction.AskAnother },
+                    new DialogueOption { question = "Chúc bạn tham quan vui.", answer = "Cảm ơn bạn, chúc bạn cũng tìm được một bức tranh mình yêu thích!", action = DialogueAction.EndConversation },
+                };
+                break;
+            case "GalleryVisitor_Floor1":
+                data.opening = "Bạn cũng đang xem bức Lợn đàn à? Mình thấy cảnh lợn mẹ và đàn con thật gần gũi.";
+                data.options = new[]
+                {
+                    new DialogueOption { question = "Bạn đang xem điều gì?", answer = "Mình đang nhìn đàn lợn con quây quần quanh mẹ. Cảnh ấy khiến mình nghĩ đến một gia đình ấm áp.", action = DialogueAction.AskAnother },
+                    new DialogueOption { question = "Bạn thích chi tiết nào?", answer = "Mình thích những xoáy âm dương trên mình lợn. Chi tiết ấy làm bức tranh nổi bật và khiến mình muốn ngắm kỹ hơn.", action = DialogueAction.AskAnother },
+                    new DialogueOption { question = "Tôi cũng muốn xem kỹ hơn.", answer = "Ừ, mình cũng muốn nán lại ngắm thêm một lúc. Chúc bạn tìm thấy chi tiết mình thích!", action = DialogueAction.EndConversation },
+                };
+                break;
+            case "GalleryVisitor_Floor2":
+                data.opening = "Chào bạn! Những bức tranh ở khu này khiến mình muốn dừng lại lâu hơn.";
+                data.options = new[]
+                {
+                    new DialogueOption { question = "Khu này có gì khác tầng dưới?", answer = "Ở đây, mình chú ý hơn đến những bức tranh về nhân vật lịch sử. Cảm giác khi ngắm chúng hào hùng hơn những cảnh đời thường mình vừa xem.", action = DialogueAction.AskAnother },
+                    new DialogueOption { question = "Bạn gợi ý tôi xem bức nào?", answer = "Mình gợi ý bức Hai Bà Trưng cưỡi voi. Hình ảnh Hai Bà xung trận khiến mình cảm nhận rõ khí thế mạnh mẽ của bức tranh.", action = DialogueAction.AskAnother },
+                    new DialogueOption { question = "Tôi sẽ khám phá tiếp.", answer = "Chúc bạn tìm được những điều thú vị ở khu này nhé!", action = DialogueAction.EndConversation },
+                };
+                break;
+            default: throw new System.ArgumentException("Unknown gallery NPC: " + name);
+        }
+        AssetDatabase.CreateAsset(data, path);
+        return data;
     }
 
     private static MinigameTrigger FindWorkshop(GameObject panel)
@@ -121,14 +148,23 @@ public static class SetupGalleryNPCTool
         part.transform.localScale = scale;
     }
 
-    private static void CreateNPCPrefab(string name, string displayName, string[] lines, string visualPath)
+    private static void CreateNPCPrefab(string name, string displayName, NPCDialogueData data, string visualPath)
     {
         string path = PrefabFolder + "/" + name + ".prefab";
         bool isGuide = name == "GalleryGuide";
         if (AssetDatabase.LoadAssetAtPath<GameObject>(path) != null)
         {
-            if (isGuide) UpdateGuideVisual(path);
-            else UpdateVisitorVisual(path, visualPath);
+            GameObject existing = PrefabUtility.LoadPrefabContents(path);
+            try
+            {
+                var npc = existing.GetComponent<NPCInteractable>();
+                if (npc != null && npc.dialogueData == null)
+                {
+                    npc.dialogueData = data;
+                    PrefabUtility.SaveAsPrefabAsset(existing, path);
+                }
+            }
+            finally { PrefabUtility.UnloadPrefabContents(existing); }
             return;
         }
         var root = new GameObject(name, typeof(CapsuleCollider), typeof(Rigidbody));
@@ -151,7 +187,7 @@ public static class SetupGalleryNPCTool
 
             var npc = root.AddComponent<NPCInteractable>();
             npc.npcName = displayName;
-            npc.dialogueLines = lines;
+            npc.dialogueData = data;
             npc.interactionCollider = body;
 
             var outline = root.GetComponent<InteractableOutline>();
@@ -276,12 +312,34 @@ public static class SetupGalleryNPCTool
         if (prefab == null) return;
 
         GameObject instance = GameObject.Find(name);
+        if (instance == null)
+            foreach (var candidate in Object.FindObjectsByType<NPCInteractable>(FindObjectsInactive.Include))
+                if (candidate.name == name) { instance = candidate.gameObject; break; }
         if (instance != null)
         {
-            // Cleanly replace instance to remove old broken mesh overrides and ensure complete prefab visual sync
-            Undo.DestroyObjectImmediate(instance);
+            var existingNPC = instance.GetComponent<NPCInteractable>();
+            if (existingNPC != null)
+            {
+                Undo.RecordObject(existingNPC, "Assign missing NPC dialogue/workshop");
+                bool changed = false;
+                if (existingNPC.dialogueData == null)
+                {
+                    existingNPC.dialogueData = prefab.GetComponent<NPCInteractable>().dialogueData;
+                    changed = true;
+                }
+                if (existingNPC.workshopTrigger == null && workshop != null)
+                {
+                    existingNPC.workshopTrigger = workshop;
+                    changed = true;
+                }
+                if (changed)
+                {
+                    PrefabUtility.RecordPrefabInstancePropertyModifications(existingNPC);
+                    EditorUtility.SetDirty(existingNPC);
+                }
+            }
+            return;
         }
-
         instance = (GameObject)PrefabUtility.InstantiatePrefab(prefab);
         instance.name = name;
         instance.transform.SetPositionAndRotation(position, Quaternion.Euler(0, yaw, 0));
@@ -316,9 +374,16 @@ public static class SetupGalleryNPCTool
     public static void ValidateSavedGallery()
     {
         var guide = GameObject.Find("GalleryGuide")?.GetComponent<NPCInteractable>();
-        var visitor = GameObject.Find("GalleryVisitor")?.GetComponent<NPCInteractable>();
-        if (guide == null || visitor == null || guide.dialogueLines.Length != 2 || visitor.dialogueLines.Length != 3)
-            throw new System.InvalidOperationException("Saved NPCs or dialogue lines are missing.");
+        foreach (string npcName in new[] { "GalleryGuide", "GalleryVisitor", "GalleryVisitor_Floor1", "GalleryVisitor_Floor2" })
+        {
+            var npc = GameObject.Find(npcName)?.GetComponent<NPCInteractable>();
+            if (npc == null || npc.dialogueData == null || string.IsNullOrWhiteSpace(npc.dialogueData.opening)
+                || npc.dialogueData.options == null || npc.dialogueData.options.Length == 0)
+                throw new System.InvalidOperationException("Saved NPC dialogue is missing: " + npcName);
+            foreach (DialogueOption option in npc.dialogueData.options)
+                if (option == null || !option.IsValid)
+                    throw new System.InvalidOperationException("Empty/invalid NPC question: " + npcName);
+        }
         if (guide.workshopTrigger == null || guide.workshopTrigger.minigameUI == null)
             throw new System.InvalidOperationException("Saved guide has no workshop reference.");
         foreach (var npc in Object.FindObjectsByType<NPCInteractable>(FindObjectsInactive.Include))

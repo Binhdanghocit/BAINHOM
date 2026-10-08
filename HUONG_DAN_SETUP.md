@@ -22,7 +22,7 @@ Các scene hiện có đã được cấu hình. Chỉ chạy setup cho phần c
 |---|---|---|---|
 | **Setup Workshop Tô Màu** | Scene cần workshop, dừng Play | Tạo/tái sử dụng WorkshopColoringCanvas, panel, safe area, khung ảnh nét/mẫu, palette, chọn tranh và nút; nối ColoringPageMinigame và cửa tìm thấy. Giữ danh sách tranh hiện có; danh sách mới trống. Bỏ Instructions, để panel đóng. Có thể bật Read/Write cho ảnh mặc định của tool. | Kiểm tham chiếu cửa/bàn, thêm tranh, Ctrl+S. Tool có thể đặt lại style/vị trí UI tùy chỉnh. |
 | **Workshop tô màu > Thêm cặp tranh** | Có ColoringPageMinigame, dừng Play | Mở cửa sổ authoring; khi bấm thêm, tạo tài nguyên cạnh ảnh nguồn và append một mục vào workshop. | Kiểm preview, lưu scene; xem phần 3–5. |
-| **Setup Gallery NPCs** | Đúng SampleScene, workshop có panel; có BusinessManVisual.prefab và model khách tham quan Casual Female 01 | Tạo prefab/instance còn thiếu; GalleryGuide cập nhật visual sang Business Man và GalleryVisitor cập nhật sang Nữ Casual 01 (URP + idle animation). Giữ lời thoại, collider, vị trí và liên kết workshop đã gán; chỉ nối bàn khi hướng dẫn viên chưa có liên kết. | Kiểm collider, lời thoại và workshopTrigger, Ctrl+S. Prefab được cập nhật trên disk; Undo scene không thay thế việc quản lý asset. |
+| **Setup Gallery NPCs** | Đúng SampleScene, workshop có panel; có BusinessManVisual.prefab và model khách tham quan Casual | Tạo dữ liệu/prefab/instance còn thiếu. Chỉ gán dialogueData hoặc workshopTrigger khi chưa có; giữ nội dung Inspector, model, collider, vị trí và liên kết hiện có. | Kiểm dialogueData, collider và workshopTrigger, Ctrl+S. Asset mới được tạo trên disk; Undo scene không thay thế việc quản lý asset. |
 | **Tự Động Setup 3 Nút Menu Cánh Cửa (Panel_DoorMenu)** | Có cửa tên cua hoặc DoorMenuTrigger; có panel gán doorMenuUI hoặc Panel_DoorMenu dưới cửa | Cập nhật chữ/font tiếng Việt, ba nút/callback và DoorMenuLayout; tái sử dụng hierarchy, giữ collider đã có, để menu đóng. | Kiểm minigameUI trỏ workshop; Ctrl+S. Nếu thiếu panel, gán panel hiện có trước. |
 
 Scene mới: setup workshop trước, nối panel vào bàn/cửa, rồi setup NPC và menu cửa. Tool không tự tìm mọi đối tượng hoặc vị trí phù hợp cho level mới. Có nhiều workshop thì chọn đúng component trong ô Workshop, không chỉ dựa vào nút Tìm.
@@ -132,7 +132,13 @@ Kiểm tra NPCInteractable trên các NPC trong triển lãm:
 
 Collider thân chọn NPC/cản ray; trigger proximity riêng theo dõi người chơi. Rigidbody kinematic, không gravity; không gắn PlayerController vào NPC.
 
-Chỉnh lời thoại rồi Ctrl+S. NPC thường có nút **Tiếp tục**; hướng dẫn viên có lựa chọn tham quan/workshop ở cuối. Disable component phải chặn tương tác và đóng hội thoại chính NPC đó. Kiểm hai NPC gần nhau không chuyển câu của người khác.
+Mỗi NPC dùng một asset riêng tại **Assets/Dialogue/GalleryGuide.asset**, **GalleryVisitor.asset**, **GalleryVisitor_Floor1.asset**, **GalleryVisitor_Floor2.asset**. Chọn asset trong Project để sửa **Opening**, **Options → Question / Answer / Action**, **Exit Label** trong Inspector. Có thể tạo bộ mới qua **Create > Gallery > NPC Dialogue**, rồi gán vào **NPCInteractable → Dialogue Data**. Không sửa lời thoại trong script để thay nội dung đã tạo; setup chạy lại không đặt lại nội dung hoặc thay asset tùy chỉnh.
+
+Luồng mới: mở đầu + câu hỏi → chọn câu hỏi → đọc câu trả lời → **Hỏi câu khác** về danh sách. **End Conversation** hiển thị lời chào trước khi bấm **Tiếp tục tham quan**; **Enter Workshop** hiển thị lời mời trước khi bấm **Vào workshop**, sử dụng workshopTrigger hiện có trên hướng dẫn viên. Nút **Đóng hội thoại** luôn nằm ngoài vùng cuộn. Nếu thiếu liên kết workshop, người chơi vẫn đóng được. Câu hỏi/đáp trống hoặc action sai không tạo nút rỗng.
+
+Không gán Dialogue Data thì dùng **dialogueLines** theo luồng cũ (Tiếp tục/E, hướng dẫn viên có lựa chọn ở cuối). Bốn NPC đã chuyển đổi không đọc chuỗi cũ. Bấm lặp trong 0,15 giây không chuyển nhiều bước. Khóa modal giữ trong lúc trả lời/quay danh sách; đóng chỉ phục hồi khi các modal khác đã đóng. Disable/destroy NPC, disable manager hoặc đổi scene phải đóng UI. Kiểm hai NPC gần nhau không chuyển câu của người khác.
+
+UI dùng nút uGUI và GraphicRaycaster với VRUIInputBridge hiện có. Khung co theo ngang/dọc và safe area, chữ/nút xuống dòng, nội dung dài cuộn; nút đóng giữ ngoài vùng cuộn. Kiểm chuột/touch/controller thật riêng.
 
 ### Cửa và workshop
 
@@ -211,11 +217,15 @@ Khi thêm hoặc thay nguồn đã được review: cập nhật inventory/prese
 
 **Tools > Tests > Run Gameplay Regression Suite**, **Run Coloring Workshop Test Suite**, **Run All Review Checks** là kiểm Editor thông thường. Coloring có test tự chạy sau reload; đọc kết quả, phân biệt cảnh báo dự kiến.
 
+Kiểm hội thoại mới bằng entry **TestGalleryNPCPlayMode.Begin** trên bản sao dự án. Entry chạy suite gameplay (gồm hội thoại cũ và dữ liệu lỗi), kiểm setup hai lần, rồi Play Mode qua mọi nhánh của bốn NPC, workshop/quay lại, bấm lặp, nhiều collider, disable/destroy, modal Settings và đổi active scene. Render câu hỏi của cả bốn NPC và câu trả lời hướng dẫn viên ở 1280×720 / 720×1280 với safe inset; kiểm text height, nút đóng và GraphicRaycaster. Kết quả ở **Logs/DialogueReview/AuthoringResults.txt**, **NPCPlayModeResults.txt**, ảnh PNG; suite cũ ở **Logs/ReviewGameplayResults.txt**. Entry **tự thoát Editor**, không lưu scene. **TestGalleryNPCPlayMode.BeginLayout** chỉ kiểm render. Đây là callback/pointer và kích thước mô phỏng trong Editor, vẫn cần kiểm touch/XR pointer trên thiết bị thật.
+
 **Run Saved Artwork Region Play Mode có thể thoát Editor khi xong.** Các entry tự động trong TestColorReferenceAuthoring, TestArtworkAuthoringDimensions, TestMainMenuPlayMode, TestVRModalLocomotionPlayMode, TestAudioSettingsPlayMode, TestSettingsLayoutPlayMode, TestDoorMenuFogSuite, TestColorPreprocessing.RunAndExit/RunAndAuthoring/AuditCrossTargetAndExit, TestColorBoundaryAuthoring.Begin/AuditGeneratedAndExit, TestMuseumEmployeeIntegration.Begin và camera/NPC có thể đổi scene, tạo fixture hoặc gọi EditorApplication.Exit. Chỉ chạy trên bản sao; đọc entry trước dùng -executeMethod. Pointer callback mô phỏng không phải mouse/touch/controller thật.
 
 - [ ] Compile không lỗi C#; phân loại Console theo test/asset thật.
 - [ ] Menu → gallery → workshop → gallery → menu; Play dùng được lần thứ hai.
-- [ ] NPC thường/hướng dẫn viên, Tiếp tục/lựa chọn, NPC disabled.
+- [ ] Cả 12 nhánh của bốn NPC: mở đầu, đáp đúng câu hỏi, hỏi lại/kết thúc; sửa nội dung Inspector rồi chạy setup hai lần không mất sửa.
+- [ ] Hướng dẫn viên → workshop → quay lại → nói chuyện lại; hội thoại cũ vẫn hoạt động khi Dialogue Data trống.
+- [ ] NPC disabled/inactive/destroyed, manager disabled, đổi scene khi đang nói; modal chồng giữ khóa đúng.
 - [ ] Mọi modal khóa/phục hồi input, gồm modal chồng nhau.
 - [ ] Chỉnh BGM/volume trước gallery, đổi scene nhiều lần: một BGM, UI đúng.
 - [ ] Mỗi tranh: preview không hồng, không tô ngoài vùng/nền; A → B → A, đóng/mở, reset.

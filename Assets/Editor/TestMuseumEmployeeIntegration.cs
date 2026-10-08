@@ -110,7 +110,7 @@ public static class TestMuseumEmployeeIntegration
         UnityEngine.Object.DestroyImmediate(guide.gameObject);
         SetupGalleryNPCTool.ConfigureNPCs();
         var fresh = GameObject.Find("GalleryGuide").GetComponent<NPCInteractable>();
-        Check(fresh.GetComponentInChildren<Animator>().avatar == avatar && fresh.dialogueLines.Length == 2 && fresh.workshopTrigger != null,
+        Check(fresh.GetComponentInChildren<Animator>().avatar == avatar && fresh.dialogueData != null && fresh.workshopTrigger != null,
             "Setup creates a missing guide instance with Business Man and workshop link");
         Check(File.ReadAllBytes(ScenePath).SequenceEqual(sceneBytes), "Validation never writes the saved scene or current bake");
         EditorSceneManager.OpenScene(ScenePath);
